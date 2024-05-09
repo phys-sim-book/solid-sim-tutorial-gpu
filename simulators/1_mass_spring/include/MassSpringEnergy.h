@@ -2,21 +2,21 @@
 
 #include <memory>
 #include <Eigen/Dense>
-#include "square_mesh.h"
 
-class InertialEnergy
+class MassSpringEnergy
 {
 public:
-    InertialEnergy(const std::vector<float> &x, const std::vector<float> &x_tilde, float m);
-    ~InertialEnergy();
-    InertialEnergy(InertialEnergy &&rhs);
-    InertialEnergy(const InertialEnergy &rhs);
-    InertialEnergy &operator=(InertialEnergy &&rhs);
-    InertialEnergy &operator=(const InertialEnergy &rhs);
+    MassSpringEnergy(const std::vector<float> &x, const std::vector<int> &e, const std::vector<float> &l2, const std::vector<float> &k);
+    ~MassSpringEnergy();
+    MassSpringEnergy(MassSpringEnergy &&rhs);
+    MassSpringEnergy(const MassSpringEnergy &rhs);
+    MassSpringEnergy &operator=(MassSpringEnergy &&rhs);
+    MassSpringEnergy &operator=(const MassSpringEnergy &rhs);
 
     void update_x(const std::vector<float> &x);
-    void update_x_tilde(const std::vector<float> &x_tilde);
-    void update_m(float m);
+    void update_e(const std::vector<int> &e);
+    void update_l2(const std::vector<float> &l2);
+    void update_k(const std::vector<float> &k);
     float val();                // Calculate the value of the energy
     std::vector<float> &grad(); // Calculate the gradient of the energy
     std::vector<float> &hess(); // Calculate the Hessian matrix of the energy
