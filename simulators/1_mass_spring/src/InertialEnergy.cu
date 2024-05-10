@@ -5,65 +5,74 @@
 
 using namespace muda;
 
-struct InertialEnergy::Impl
+template <typename T, int dim>
+struct InertialEnergy<T, dim>::Impl
 {
-	DeviceBuffer<float> device_x, device_x_tilde, device_grad;
+	DeviceBuffer<T> device_x, device_x_tilde, device_grad;
 	int N;
-	float m, val;
-	std::vector<float> host_x, host_x_tilde, host_grad;
-	std::vector<float> host_hess;
+	T m, val;
+	std::vector<T> host_grad;
+	std::vector<T> host_hess;
 };
 
-InertialEnergy::~InertialEnergy() = default;
+template <typename T, int dim>
+InertialEnergy<T, dim>::~InertialEnergy<T, dim>() = default;
 
-InertialEnergy::InertialEnergy(InertialEnergy &&rhs) = default;
+template <typename T, int dim>
+InertialEnergy<T, dim>::InertialEnergy<T, dim>(InertialEnergy<T, dim> &&rhs) = default;
 
-InertialEnergy &InertialEnergy::operator=(InertialEnergy &&rhs) = default;
+template <typename T, int dim>
+InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(InertialEnergy<T, dim> &&rhs) = default;
 
-InertialEnergy::InertialEnergy(const InertialEnergy &rhs)
+template <typename T, int dim>
+InertialEnergy<T, dim>::InertialEnergy<T, dim>(const InertialEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
-InertialEnergy &InertialEnergy::operator=(const InertialEnergy &rhs)
+template <typename T, int dim>
+InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(const InertialEnergy<T, dim> &rhs)
 {
 	*pimpl_ = *rhs.pimpl_;
 	return *this;
 };
 
-InertialEnergy::InertialEnergy(const std::vector<float> &x, const std::vector<float> &x_tilde, float m) : pimpl_{std::make_unique<Impl>()}
-{
-	pimpl_->host_x = x;
-	pimpl_->host_x_tilde = x_tilde;
-	pimpl_->m = m;
-	pimpl_->N = x.size() / 2;
-	pimpl_->device_x.copy_from(x);
-	pimpl_->device_x_tilde.copy_from(x_tilde);
-	pimpl_->device_grad = std::vector<float>(pimpl_->N * 2);
-	pimpl_->host_grad = std::vector<float>(pimpl_->N * 2);
-	pimpl_->host_hess = std::vector<float>(pimpl_->N * pimpl_->N * 4, m);
-}
-
-void InertialEnergy::update_x(const std::vector<float> &x)
-{
-	pimpl_->host_x = x;
-	pimpl_->device_x.copy_from(x);
-}
-
-void InertialEnergy::update_x_tilde(const std::vector<float> &x_tilde)
-{
-	pimpl_->host_x_tilde = x_tilde;
-	pimpl_->device_x_tilde.copy_from(x_tilde);
-}
-void InertialEnergy::update_m(float m)
+template <typename T, int dim>
+InertialEnergy<T, dim>::InertialEnergy<T, dim>(const std::vector<T> &x, const std::vector<T> &x_tilde, T m) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->m = m;
+	pimpl_->N = x.size() / dim;
+	pimpl_->device_x.copy_from(x);
+	pimpl_->device_x_tilde.copy_from(x_tilde);
+	pimpl_->device_grad = std::vector<T>(pimpl_->N * dim);
+	pimpl_->host_grad = std::vector<T>(pimpl_->N * dim);
+	pimpl_->host_hess = std::vector<T>(pimpl_->N * pimpl_->N * dim * dim, m);
 }
-float InertialEnergy::val()
+
+template <typename T, int dim>
+void InertialEnergy<T, dim>::update_x(const std::vector<T> &x)
+{
+	pimpl_->device_x.copy_from(x);
+}
+
+template <typename T, int dim>
+void InertialEnergy<T, dim>::update_x_tilde(const std::vector<T> &x_tilde)
+{
+	pimpl_->device_x_tilde.copy_from(x_tilde);
+}
+
+template <typename T, int dim>
+void InertialEnergy<T, dim>::update_m(T m)
+{
+	pimpl_->m = m;
+}
+
+template <typename T, int dim>
+T InertialEnergy<T, dim>::val()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_x_tilde = pimpl_->device_x_tilde;
 	auto &m = pimpl_->m;
-	auto &N = pimpl_->N * 2;
-	DeviceBuffer<float> device_val(N);
+	auto N = pimpl_->N * dim;
+	DeviceBuffer<T> device_val(N);
 	ParallelFor(256)
 		.apply(N,
 			   [device_val = device_val.viewer(), device_x = device_x.cviewer(), device_x_tilde = device_x_tilde.cviewer(), m] __device__(int i) mutable
@@ -73,12 +82,14 @@ float InertialEnergy::val()
 		.wait();
 	return devicesum(device_val);
 }
-std::vector<float> &InertialEnergy::grad()
+
+template <typename T, int dim>
+std::vector<T> &InertialEnergy<T, dim>::grad()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_x_tilde = pimpl_->device_x_tilde;
 	auto &m = pimpl_->m;
-	auto &N = pimpl_->N * 2;
+	auto N = pimpl_->N * dim;
 	auto &device_grad = pimpl_->device_grad;
 	auto &host_grad = pimpl_->host_grad;
 	ParallelFor(256)
@@ -92,7 +103,13 @@ std::vector<float> &InertialEnergy::grad()
 	return host_grad;
 } // Calculate the gradient of the energy
 
-std::vector<float> &InertialEnergy::hess()
+template <typename T, int dim>
+std::vector<T> &InertialEnergy<T, dim>::hess()
 {
 	return pimpl_->host_hess;
 } // Calculate the Hessian matrix of the energy
+
+template class InertialEnergy<float, 2>;
+template class InertialEnergy<float, 3>;
+template class InertialEnergy<double, 2>;
+template class InertialEnergy<double, 3>;
