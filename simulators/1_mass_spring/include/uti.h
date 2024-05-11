@@ -12,12 +12,15 @@ public:
     void set_value(int row, int col, T val, int loc);
     void set_diagonal(T val);
 
-    std::vector<int> &get_row_buffer();
-    std::vector<int> &get_col_buffer();
-    std::vector<T> &get_val_buffer();
+    const std::vector<int> &get_row_buffer() const;
+    const std::vector<int> &get_col_buffer() const;
+    const std::vector<T> &get_val_buffer() const;
+    std::vector<int> &set_row_buffer();
+    std::vector<int> &set_col_buffer();
+    std::vector<T> &set_val_buffer();
     SparseMatrix<T> &combine(const SparseMatrix<T> &other);
 
-    int get_size();
+    int get_size() const;
 
     SparseMatrix<T> operator*(const T &a);
 
@@ -38,4 +41,4 @@ template <typename T>
 T max_vector(const std::vector<T> &a);
 
 template <typename T>
-void search_dir(const std::vector<T> &grad, SparseMatrix<T> &hess, std::vector<T> &dir);
+void search_dir(const std::vector<T> &grad, const SparseMatrix<T> &hess, std::vector<T> &dir);

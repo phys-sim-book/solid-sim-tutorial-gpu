@@ -17,19 +17,19 @@ struct MassSpringEnergy<T, dim>::Impl
 	SparseMatrix<T> host_hess;
 };
 template <typename T, int dim>
-MassSpringEnergy<T, dim>::MassSpringEnergy<T, dim>() = default;
+MassSpringEnergy<T, dim>::MassSpringEnergy() = default;
 
 template <typename T, int dim>
-MassSpringEnergy<T, dim>::~MassSpringEnergy<T, dim>() = default;
+MassSpringEnergy<T, dim>::~MassSpringEnergy() = default;
 
 template <typename T, int dim>
-MassSpringEnergy<T, dim>::MassSpringEnergy<T, dim>(MassSpringEnergy<T, dim> &&rhs) = default;
+MassSpringEnergy<T, dim>::MassSpringEnergy(MassSpringEnergy<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
 MassSpringEnergy<T, dim> &MassSpringEnergy<T, dim>::operator=(MassSpringEnergy<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-MassSpringEnergy<T, dim>::MassSpringEnergy<T, dim>(const MassSpringEnergy<T, dim> &rhs)
+MassSpringEnergy<T, dim>::MassSpringEnergy(const MassSpringEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
@@ -40,7 +40,7 @@ MassSpringEnergy<T, dim> &MassSpringEnergy<T, dim>::operator=(const MassSpringEn
 }
 
 template <typename T, int dim>
-MassSpringEnergy<T, dim>::MassSpringEnergy<T, dim>(const std::vector<T> &x, const std::vector<int> &e, const std::vector<T> &l2, const std::vector<T> &k) : pimpl_{std::make_unique<Impl>()}
+MassSpringEnergy<T, dim>::MassSpringEnergy(const std::vector<T> &x, const std::vector<int> &e, const std::vector<T> &l2, const std::vector<T> &k) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = x.size() / dim;
 	pimpl_->device_x.copy_from(x);
@@ -153,7 +153,7 @@ SparseMatrix<T> &MassSpringEnergy<T, dim>::hess()
 			diffi[d] = device_x(dim * idx[0] + d) - device_x(dim * idx[1] + d);
 			diff += diffi[d] * diffi[d];
 		}
-		Eigen::Vector<T, dim> diff_vec(diffi);
+		Eigen::Matrix<T, dim, 1> diff_vec(diffi);
 		Eigen::Matrix<T, dim, dim> diff_outer = diff_vec * diff_vec.transpose();
 		T scalar = 2 * device_k(i) / device_l2(i);
 		Eigen::Matrix<T, dim, dim> H_diff = scalar * (2 * diff_outer + (diff_vec.dot(diff_vec) - device_l2(i)) * Eigen::Matrix<T, dim, dim>::Identity());
@@ -175,9 +175,9 @@ SparseMatrix<T> &MassSpringEnergy<T, dim>::hess()
 					}
 			} })
 		.wait();
-	device_hess.copy_to(host_hess.get_val_buffer());
-	device_hess_row_idx.copy_to(host_hess.get_row_buffer());
-	device_hess_col_idx.copy_to(host_hess.get_col_buffer());
+	device_hess.copy_to(host_hess.set_val_buffer());
+	device_hess_row_idx.copy_to(host_hess.set_row_buffer());
+	device_hess_col_idx.copy_to(host_hess.set_col_buffer());
 	return host_hess;
 
 } // Calculate the Hessian of the energy

@@ -6,17 +6,17 @@
 
 using namespace muda;
 template <typename T>
-SparseMatrix<T>::SparseMatrix<T>(int size) : size(size)
+SparseMatrix<T>::SparseMatrix(int size) : size(size)
 {
     row_idx = std::vector<int>(size);
     col_idx = std::vector<int>(size);
     val = std::vector<T>(size);
 }
 template <typename T>
-SparseMatrix<T>::SparseMatrix<T>() = default;
+SparseMatrix<T>::SparseMatrix() = default;
 
 template <typename T>
-SparseMatrix<T>::~SparseMatrix<T>() = default;
+SparseMatrix<T>::~SparseMatrix() = default;
 
 template <typename T>
 void SparseMatrix<T>::set_value(int row, int col, T value, int loc)
@@ -55,22 +55,38 @@ SparseMatrix<T> SparseMatrix<T>::operator*(const T &a)
     return *this;
 }
 template <typename T>
-std::vector<int> &SparseMatrix<T>::get_row_buffer()
+const std::vector<int> &SparseMatrix<T>::get_row_buffer() const
 {
     return row_idx;
 }
 template <typename T>
-std::vector<int> &SparseMatrix<T>::get_col_buffer()
+const std::vector<int> &SparseMatrix<T>::get_col_buffer() const
 {
     return col_idx;
 }
 template <typename T>
-std::vector<T> &SparseMatrix<T>::get_val_buffer()
+const std::vector<T> &SparseMatrix<T>::get_val_buffer() const
+{
+    return val;
+}
+
+template <typename T>
+std::vector<int> &SparseMatrix<T>::set_row_buffer()
+{
+    return row_idx;
+}
+template <typename T>
+std::vector<int> &SparseMatrix<T>::set_col_buffer()
+{
+    return col_idx;
+}
+template <typename T>
+std::vector<T> &SparseMatrix<T>::set_val_buffer()
 {
     return val;
 }
 template <typename T>
-int SparseMatrix<T>::get_size()
+int SparseMatrix<T>::get_size() const
 {
     return size;
 }
@@ -139,7 +155,7 @@ template float max_vector<float>(const std::vector<float> &a);
 template double max_vector<double>(const std::vector<double> &a);
 
 template <typename T>
-void search_dir(const std::vector<T> &grad, SparseMatrix<T> &hess, std::vector<T> &dir)
+void search_dir(const std::vector<T> &grad, const SparseMatrix<T> &hess, std::vector<T> &dir)
 {
     LinearSystemContext ctx;
     int N = grad.size();
@@ -160,5 +176,5 @@ void search_dir(const std::vector<T> &grad, SparseMatrix<T> &hess, std::vector<T
     ctx.sync();
     x_device.copy_to(dir);
 }
-template void search_dir<float>(const std::vector<float> &grad, SparseMatrix<float> &hess, std::vector<float> &dir);
-template void search_dir<double>(const std::vector<double> &grad, SparseMatrix<double> &hess, std::vector<double> &dir);
+template void search_dir<float>(const std::vector<float> &grad, const SparseMatrix<float> &hess, std::vector<float> &dir);
+template void search_dir<double>(const std::vector<double> &grad, const SparseMatrix<double> &hess, std::vector<double> &dir);

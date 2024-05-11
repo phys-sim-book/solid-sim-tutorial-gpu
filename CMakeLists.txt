@@ -8,6 +8,7 @@ set(MUDA_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(muda)
 
+
 include(FetchContent)
 FetchContent_Declare(SFML
     GIT_REPOSITORY https://github.com/SFML/SFML.git
@@ -16,7 +17,7 @@ FetchContent_MakeAvailable(SFML)
 set(CMAKE_CUDA_ARCHITECTURES 75)
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+find_package(Eigen3 REQUIRED )
 
 if(Eigen3_FOUND)
     message(STATUS "Eigen3 found (include: ${EIGEN3_INCLUDE_DIR}, version: ${EIGEN3_VERSION_STRING})")
@@ -24,6 +25,8 @@ else()
     message(FATAL_ERROR "Eigen3 not found")
 endif()
 
-include_directories(${EIGEN3_INCLUDE_DIRS})
+include_directories(${EIGEN3_INCLUDE_DIR})
+
+include_directories(/usr/include)
 
 add_subdirectory(simulators)

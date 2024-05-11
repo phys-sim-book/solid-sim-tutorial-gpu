@@ -1,13 +1,13 @@
 #include "simulator.h"
 
 template <typename T, int dim>
-MassSpringSimulator<T, dim>::MassSpringSimulator<T, dim>() = default;
+MassSpringSimulator<T, dim>::MassSpringSimulator() = default;
 
 template <typename T, int dim>
-MassSpringSimulator<T, dim>::~MassSpringSimulator<T, dim>() = default;
+MassSpringSimulator<T, dim>::~MassSpringSimulator() = default;
 
 template <typename T, int dim>
-MassSpringSimulator<T, dim>::MassSpringSimulator<T, dim>(T rho, T side_len, T initial_stretch, T K, T h, T tol_, int n_seg) : tol(tol_), window(sf::VideoMode(resolution, resolution), "MassSpringSimulator")
+MassSpringSimulator<T, dim>::MassSpringSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol_, int n_seg) : tol(tol_), window(sf::VideoMode(resolution, resolution), "MassSpringSimulator")
 {
     generate(side_len, n_seg, x, e);
     v.resize(x.size(), 0);
@@ -155,14 +155,14 @@ T MassSpringSimulator<T, dim>::IP_val()
 }
 
 template <typename T, int dim>
-std::vector<T> &MassSpringSimulator<T, dim>::IP_grad()
+std::vector<T> MassSpringSimulator<T, dim>::IP_grad()
 {
 
     return add_vector(inertialenergy.grad(), massspringenergy.grad());
 }
 
 template <typename T, int dim>
-SparseMatrix<T> &MassSpringSimulator<T, dim>::IP_hess()
+SparseMatrix<T> MassSpringSimulator<T, dim>::IP_hess()
 {
     SparseMatrix<T> inertial_hess = inertialenergy.hess();
     SparseMatrix<T> massspring_hess = massspringenergy.hess() * (h * h);

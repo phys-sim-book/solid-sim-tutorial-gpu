@@ -21,8 +21,8 @@ public:
     void update_x_tilde(std::vector<T> new_x_tilde);
     void update_v(std::vector<T> new_v);
     T IP_val();
-    std::vector<T> &IP_grad();
-    SparseMatrix<T> &IP_hess();
+    std::vector<T> IP_grad();
+    SparseMatrix<T> IP_hess();
     std::vector<T> search_direction();
     T screen_projection_x(T point);
     T screen_projection_y(T point);

@@ -14,19 +14,19 @@ struct InertialEnergy<T, dim>::Impl
 	SparseMatrix<T> host_hess;
 };
 template <typename T, int dim>
-InertialEnergy<T, dim>::InertialEnergy<T, dim>() = default;
+InertialEnergy<T, dim>::InertialEnergy() = default;
 
 template <typename T, int dim>
-InertialEnergy<T, dim>::~InertialEnergy<T, dim>() = default;
+InertialEnergy<T, dim>::~InertialEnergy() = default;
 
 template <typename T, int dim>
-InertialEnergy<T, dim>::InertialEnergy<T, dim>(InertialEnergy<T, dim> &&rhs) = default;
+InertialEnergy<T, dim>::InertialEnergy(InertialEnergy<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
 InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(InertialEnergy<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-InertialEnergy<T, dim>::InertialEnergy<T, dim>(const InertialEnergy<T, dim> &rhs)
+InertialEnergy<T, dim>::InertialEnergy(const InertialEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
@@ -37,7 +37,7 @@ InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(const InertialEnergy<T
 };
 
 template <typename T, int dim>
-InertialEnergy<T, dim>::InertialEnergy<T, dim>(int N, T m) : pimpl_{std::make_unique<Impl>()}
+InertialEnergy<T, dim>::InertialEnergy(int N, T m) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = N;
 	pimpl_->m = m;
