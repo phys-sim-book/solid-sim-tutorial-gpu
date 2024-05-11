@@ -30,13 +30,6 @@ InertialEnergy<T, dim>::InertialEnergy(const InertialEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(const InertialEnergy<T, dim> &rhs)
-{
-	*pimpl_ = *rhs.pimpl_;
-	return *this;
-};
-
-template <typename T, int dim>
 InertialEnergy<T, dim>::InertialEnergy(int N, T m) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = N;
@@ -104,7 +97,7 @@ std::vector<T> &InertialEnergy<T, dim>::grad()
 } // Calculate the gradient of the energy
 
 template <typename T, int dim>
-SparseMatrix<T> &InertialEnergy<T, dim>::hess()
+SparseMatrix<T> InertialEnergy<T, dim>::hess()
 {
 	return pimpl_->host_hess;
 } // Calculate the Hessian matrix of the energy

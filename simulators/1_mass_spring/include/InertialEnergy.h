@@ -20,9 +20,9 @@ public:
     void update_x(const std::vector<T> &x);
     void update_x_tilde(const std::vector<T> &x_tilde);
     void update_m(T m);
-    T val();                 // Calculate the value of the energy
-    std::vector<T> &grad();  // Calculate the gradient of the energy
-    SparseMatrix<T> &hess(); // Calculate the Hessian matrix of the energy
+    T val();                // Calculate the value of the energy
+    std::vector<T> &grad(); // Calculate the gradient of the energy
+    SparseMatrix<T> hess(); // Calculate the Hessian matrix of the energy
 
 private:
     // The implementation details of the VecAdder class are placed in the implementation class declared here.

@@ -1,4 +1,6 @@
 add_executable(1_mass_spring)
+
+target_compile_options(1_mass_spring PRIVATE -g)
 set_target_properties(1_mass_spring PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 target_link_libraries(1_mass_spring PRIVATE muda cusolver cublas cusparse )

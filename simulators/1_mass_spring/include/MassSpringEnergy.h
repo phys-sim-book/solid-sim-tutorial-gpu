@@ -14,15 +14,14 @@ public:
     MassSpringEnergy(MassSpringEnergy &&rhs);
     MassSpringEnergy(const MassSpringEnergy &rhs);
     MassSpringEnergy &operator=(MassSpringEnergy &&rhs);
-    MassSpringEnergy &operator=(const MassSpringEnergy &rhs);
 
     void update_x(const std::vector<T> &x);
     void update_e(const std::vector<int> &e);
     void update_l2(const std::vector<T> &l2);
     void update_k(const std::vector<T> &k);
-    T val();                 // Calculate the value of the energy
-    std::vector<T> &grad();  // Calculate the gradient of the energy
-    SparseMatrix<T> &hess(); // Calculate the Hessian matrix of the energy
+    T val();                // Calculate the value of the energy
+    std::vector<T> &grad(); // Calculate the gradient of the energy
+    SparseMatrix<T> hess(); // Calculate the Hessian matrix of the energy
 
 private:
     // The implementation details of the VecAdder class are placed in the implementation class declared here.

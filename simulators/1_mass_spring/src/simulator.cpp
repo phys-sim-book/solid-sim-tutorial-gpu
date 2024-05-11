@@ -7,7 +7,7 @@ template <typename T, int dim>
 MassSpringSimulator<T, dim>::~MassSpringSimulator() = default;
 
 template <typename T, int dim>
-MassSpringSimulator<T, dim>::MassSpringSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol_, int n_seg) : tol(tol_), window(sf::VideoMode(resolution, resolution), "MassSpringSimulator")
+MassSpringSimulator<T, dim>::MassSpringSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg) : tol(tol_), h(h_), window(sf::VideoMode(resolution, resolution), "MassSpringSimulator")
 {
     generate(side_len, n_seg, x, e);
     v.resize(x.size(), 0);
@@ -31,7 +31,6 @@ MassSpringSimulator<T, dim>::MassSpringSimulator(T rho, T side_len, T initial_st
     inertialenergy = InertialEnergy<T, dim>(N, m);
     massspringenergy = MassSpringEnergy<T, dim>(x, e, l2, k);
     update_x(x);
-    printf("Initial energy ");
 }
 
 template <typename T, int dim>
@@ -54,7 +53,7 @@ void MassSpringSimulator<T, dim>::run()
         step_forward();
 
         // Wait according to time step
-        sf::sleep(sf::milliseconds(static_cast<int>(h * 1000)));
+        // sf::sleep(sf::milliseconds(static_cast<int>(h * 1000)));
     }
 
     window.close();
@@ -70,11 +69,11 @@ void MassSpringSimulator<T, dim>::step_forward()
     T E_last = IP_val();
     std::vector<T> p = search_direction();
     T residual = max_vector(p) / h;
-
+    // printf("Initial residual %f\n", residual);
     while (residual > tol)
     {
-        std::cout << "Iteration " << iter << ":\n";
-        std::cout << "residual = " << residual << "\n";
+        // std::cout << "Iteration " << iter << ":\n";
+        // std::cout << "residual = " << residual << "\n";
 
         // Line search
         T alpha = 1;
@@ -85,7 +84,7 @@ void MassSpringSimulator<T, dim>::step_forward()
             alpha /= 2;
             update_x(add_vector<T>(x0, p, 1.0, alpha));
         }
-        std::cout << "step size = " << alpha << "\n";
+        // std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
         p = search_direction();
         residual = max_vector(p) / h;
@@ -151,22 +150,24 @@ template <typename T, int dim>
 T MassSpringSimulator<T, dim>::IP_val()
 {
 
-    return inertialenergy.val() + massspringenergy.val();
+    return inertialenergy.val() + massspringenergy.val() * h * h;
 }
 
 template <typename T, int dim>
 std::vector<T> MassSpringSimulator<T, dim>::IP_grad()
 {
 
-    return add_vector(inertialenergy.grad(), massspringenergy.grad());
+    return add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h);
 }
 
 template <typename T, int dim>
 SparseMatrix<T> MassSpringSimulator<T, dim>::IP_hess()
 {
     SparseMatrix<T> inertial_hess = inertialenergy.hess();
-    SparseMatrix<T> massspring_hess = massspringenergy.hess() * (h * h);
-    return inertial_hess.combine(massspring_hess);
+    SparseMatrix<T> massspring_hess = massspringenergy.hess();
+    massspring_hess = massspring_hess * (h * h);
+    inertial_hess.combine(massspring_hess);
+    return inertial_hess;
 }
 template <typename T, int dim>
 std::vector<T> MassSpringSimulator<T, dim>::search_direction()

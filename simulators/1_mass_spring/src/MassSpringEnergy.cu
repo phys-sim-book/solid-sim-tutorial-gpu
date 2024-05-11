@@ -33,13 +33,6 @@ MassSpringEnergy<T, dim>::MassSpringEnergy(const MassSpringEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-MassSpringEnergy<T, dim> &MassSpringEnergy<T, dim>::operator=(const MassSpringEnergy<T, dim> &rhs)
-{
-	*pimpl_ = *rhs.pimpl_;
-	return *this;
-}
-
-template <typename T, int dim>
 MassSpringEnergy<T, dim>::MassSpringEnergy(const std::vector<T> &x, const std::vector<int> &e, const std::vector<T> &l2, const std::vector<T> &k) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = x.size() / dim;
@@ -120,7 +113,7 @@ std::vector<T> &MassSpringEnergy<T, dim>::grad()
 								diffi[d] = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
 								diff += diffi[d] * diffi[d];
 						   }
-						   T factor=2*device_k(i)*(diff - device_l2(i)); 
+						   T factor = 2 * device_k(i) * (diff / device_l2(i) -1);
 						   for(int d=0;d<dim;d++){
 							   atomicAdd(&device_grad(dim * idx1 + d), factor * diffi[d]);
 							   atomicAdd(&device_grad(dim * idx2 + d), -factor * diffi[d]);
@@ -132,7 +125,7 @@ std::vector<T> &MassSpringEnergy<T, dim>::grad()
 }
 
 template <typename T, int dim>
-SparseMatrix<T> &MassSpringEnergy<T, dim>::hess()
+SparseMatrix<T> MassSpringEnergy<T, dim>::hess()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_e = pimpl_->device_e;
