@@ -3,12 +3,14 @@
 #include <memory>
 #include <Eigen/Dense>
 #include "square_mesh.h"
+#include "uti.h"
 
 template <typename T, int dim>
 class InertialEnergy
 {
 public:
-    InertialEnergy(const std::vector<T> &x, const std::vector<T> &x_tilde, T m);
+    InertialEnergy(int N, T m);
+    InertialEnergy();
     ~InertialEnergy();
     InertialEnergy(InertialEnergy &&rhs);
     InertialEnergy(const InertialEnergy &rhs);
@@ -18,9 +20,9 @@ public:
     void update_x(const std::vector<T> &x);
     void update_x_tilde(const std::vector<T> &x_tilde);
     void update_m(T m);
-    T val();                // Calculate the value of the energy
-    std::vector<T> &grad(); // Calculate the gradient of the energy
-    std::vector<T> &hess(); // Calculate the Hessian matrix of the energy
+    T val();                 // Calculate the value of the energy
+    std::vector<T> &grad();  // Calculate the gradient of the energy
+    SparseMatrix<T> &hess(); // Calculate the Hessian matrix of the energy
 
 private:
     // The implementation details of the VecAdder class are placed in the implementation class declared here.

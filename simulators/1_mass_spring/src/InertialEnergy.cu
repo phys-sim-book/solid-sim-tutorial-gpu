@@ -1,8 +1,7 @@
 #include "InertialEnergy.h"
-#include "uti.h"
 #include <muda/muda.h>
 #include <muda/container.h>
-
+#include "device_uti.h"
 using namespace muda;
 
 template <typename T, int dim>
@@ -12,8 +11,10 @@ struct InertialEnergy<T, dim>::Impl
 	int N;
 	T m, val;
 	std::vector<T> host_grad;
-	std::vector<T> host_hess;
+	SparseMatrix<T> host_hess;
 };
+template <typename T, int dim>
+InertialEnergy<T, dim>::InertialEnergy<T, dim>() = default;
 
 template <typename T, int dim>
 InertialEnergy<T, dim>::~InertialEnergy<T, dim>() = default;
@@ -36,15 +37,14 @@ InertialEnergy<T, dim> &InertialEnergy<T, dim>::operator=(const InertialEnergy<T
 };
 
 template <typename T, int dim>
-InertialEnergy<T, dim>::InertialEnergy<T, dim>(const std::vector<T> &x, const std::vector<T> &x_tilde, T m) : pimpl_{std::make_unique<Impl>()}
+InertialEnergy<T, dim>::InertialEnergy<T, dim>(int N, T m) : pimpl_{std::make_unique<Impl>()}
 {
+	pimpl_->N = N;
 	pimpl_->m = m;
-	pimpl_->N = x.size() / dim;
-	pimpl_->device_x.copy_from(x);
-	pimpl_->device_x_tilde.copy_from(x_tilde);
 	pimpl_->device_grad = std::vector<T>(pimpl_->N * dim);
 	pimpl_->host_grad = std::vector<T>(pimpl_->N * dim);
-	pimpl_->host_hess = std::vector<T>(pimpl_->N * pimpl_->N * dim * dim, m);
+	pimpl_->host_hess = SparseMatrix<T>(pimpl_->N * dim);
+	pimpl_->host_hess.set_diagonal(m);
 }
 
 template <typename T, int dim>
@@ -104,7 +104,7 @@ std::vector<T> &InertialEnergy<T, dim>::grad()
 } // Calculate the gradient of the energy
 
 template <typename T, int dim>
-std::vector<T> &InertialEnergy<T, dim>::hess()
+SparseMatrix<T> &InertialEnergy<T, dim>::hess()
 {
 	return pimpl_->host_hess;
 } // Calculate the Hessian matrix of the energy

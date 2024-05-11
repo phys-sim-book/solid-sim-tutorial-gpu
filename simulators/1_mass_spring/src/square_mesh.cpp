@@ -1,12 +1,12 @@
 #include "square_mesh.h"
-
-void generate(float side_length, int n_seg, std::vector<float> &x, std::vector<int> &e)
+template <typename T>
+void generate(T side_length, int n_seg, std::vector<T> &x, std::vector<int> &e)
 {
     int dim = n_seg + 1;
     x.clear();
     x.reserve(dim * dim * 2); // Preallocate space for all nodes
 
-    float step = side_length / n_seg;
+    T step = side_length / n_seg;
 
     // Populate the coordinates
     for (int i = 0; i < dim; i++)
@@ -55,3 +55,7 @@ void generate(float side_length, int n_seg, std::vector<float> &x, std::vector<i
         }
     }
 }
+
+template void generate<float>(float side_length, int n_seg, std::vector<float> &x, std::vector<int> &e);
+template void generate<double>(double side_length, int n_seg, std::vector<double> &x, std::vector<int> &e);
+template void generate<long double>(long double side_length, int n_seg, std::vector<long double> &x, std::vector<int> &e);
