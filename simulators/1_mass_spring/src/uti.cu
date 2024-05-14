@@ -76,7 +76,7 @@ template double max_vector<double>(const std::vector<double> &a);
 template <typename T>
 void search_dir(const std::vector<T> &grad, const SparseMatrix<T> &hess, std::vector<T> &dir)
 {
-    LinearSystemContext ctx;
+    static LinearSystemContext ctx;
     auto neg_grad = mult_vector<T>(grad, -1);
     int N = grad.size();
     DeviceDenseVector<T> x_device(N);
@@ -87,7 +87,8 @@ void search_dir(const std::vector<T> &grad, const SparseMatrix<T> &hess, std::ve
     Hess.resize_triplets(hess.get_size());
     Hess.row_indices().copy_from(hess.get_row_buffer().data());
     Hess.col_indices().copy_from(hess.get_col_buffer().data());
-    Hess.values().copy_from(hess.get_val_buffer().data());
+    Hess.values()
+        .copy_from(hess.get_val_buffer().data());
     DeviceCOOMatrix<T> A_coo;
     ctx.convert(Hess, A_coo);
     DeviceCSRMatrix<T> A_csr;

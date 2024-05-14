@@ -154,7 +154,7 @@ SparseMatrix<T> MassSpringEnergy<T, dim>::hess()
 		H_block << H_diff, -H_diff,
 			-H_diff, H_diff;
 
-		make_PSD(H_block, H_local);
+		//make_PSD(H_block, H_local);
 		// add to global matrix
 		for (int ni = 0; ni < 2; ni++)
 			for (int nj = 0; nj < 2; nj++)
