@@ -13,8 +13,8 @@ struct MassSpringEnergy<T, dim>::Impl
 	DeviceBuffer<T> device_l2, device_k;
 	DeviceBuffer<int> device_e;
 	int N;
-	std::vector<T> host_grad;
-	SparseMatrix<T> host_hess;
+	DeviceBuffer<T> device_grad;
+	DeviceTripletMatrix<T, 1> device_hess;
 };
 template <typename T, int dim>
 MassSpringEnergy<T, dim>::MassSpringEnergy() = default;
@@ -40,15 +40,13 @@ MassSpringEnergy<T, dim>::MassSpringEnergy(const std::vector<T> &x, const std::v
 	pimpl_->device_e.copy_from(e);
 	pimpl_->device_l2.copy_from(l2);
 	pimpl_->device_k.copy_from(k);
-	pimpl_->host_grad = std::vector<T>(pimpl_->N * dim);
 	int size = e.size() / 2;
-	pimpl_->host_hess = SparseMatrix<T>(size * dim * dim);
 }
 
 template <typename T, int dim>
-void MassSpringEnergy<T, dim>::update_x(const std::vector<T> &x)
+void MassSpringEnergy<T, dim>::update_x(DeviceBuffer<T> &x)
 {
-	pimpl_->device_x.copy_from(x);
+	pimpl_->device_x.view().copy_from(x);
 }
 
 template <typename T, int dim>
@@ -94,7 +92,7 @@ T MassSpringEnergy<T, dim>::val()
 } // Calculate the energy
 
 template <typename T, int dim>
-std::vector<T> &MassSpringEnergy<T, dim>::grad()
+DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_e = pimpl_->device_e;
@@ -102,7 +100,6 @@ std::vector<T> &MassSpringEnergy<T, dim>::grad()
 	auto &device_k = pimpl_->device_k;
 	auto N = pimpl_->device_e.size() / 2;
 	DeviceBuffer<T> device_grad(pimpl_->N * dim);
-	auto &host_grad = pimpl_->host_grad;
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_grad = device_grad.viewer()] __device__(int i) mutable
 						   {
 							int idx1= device_e(2 * i); // First node index
@@ -120,23 +117,22 @@ std::vector<T> &MassSpringEnergy<T, dim>::grad()
 							   
 						   } })
 		.wait();
-	device_grad.copy_to(host_grad);
-	return host_grad;
+	return device_grad;
 }
 
 template <typename T, int dim>
-SparseMatrix<T> MassSpringEnergy<T, dim>::hess()
+DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_e = pimpl_->device_e;
 	auto &device_l2 = pimpl_->device_l2;
 	auto &device_k = pimpl_->device_k;
 	auto N = device_e.size() / 2;
-	auto &host_hess = pimpl_->host_hess;
-	DeviceBuffer<T> device_hess(N * dim * dim * 4);
-	DeviceBuffer<int> device_hess_row_idx(N * dim * dim * 4);
-	DeviceBuffer<int> device_hess_col_idx(N * dim * dim * 4);
-	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_hess = device_hess.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N] __device__(int i) mutable
+	auto device_hess = pimpl_->device_hess;
+	auto device_hess_row_idx = device_hess.row_indices();
+	auto device_hess_col_idx = device_hess.col_indices();
+	auto device_hess_val = device_hess.values();
+	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N] __device__(int i) mutable
 						   {
 		int idx[2] = {device_e(2 * i), device_e(2 * i + 1)}; // First node index
 		T diff = 0;
@@ -164,14 +160,11 @@ SparseMatrix<T> MassSpringEnergy<T, dim>::hess()
 					for (int d2 = 0; d2 < dim; d2++){
 						device_hess_row_idx(indStart + d1 * dim + d2)= idx[ni]*dim + d1;
 						device_hess_col_idx(indStart + d1 * dim + d2)= idx[nj] * dim + d2;
-						device_hess(indStart + d1 * dim + d2)= H_local(ni * dim + d1, nj * dim + d2);
+						device_hess_val(indStart + d1 * dim + d2)= H_local(ni * dim + d1, nj * dim + d2);
 					}
 			} })
 		.wait();
-	device_hess.copy_to(host_hess.set_val_buffer());
-	device_hess_row_idx.copy_to(host_hess.set_row_buffer());
-	device_hess_col_idx.copy_to(host_hess.set_col_buffer());
-	return host_hess;
+	return device_hess;
 
 } // Calculate the Hessian of the energy
 

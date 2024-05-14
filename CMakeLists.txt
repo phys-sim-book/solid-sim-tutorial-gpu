@@ -30,3 +30,6 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(/usr/include)
 
 add_subdirectory(simulators)
+add_compile_options(/W4)
+add_compile_options(/wd4100)
+add_compile_options(/wd4244)

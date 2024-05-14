@@ -1,4 +1,4 @@
-#include "simulator.cpp"
+#include "simulator.h"
 
 int main()
 {
