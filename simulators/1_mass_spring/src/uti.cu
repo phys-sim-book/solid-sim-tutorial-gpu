@@ -44,6 +44,7 @@ DeviceTripletMatrix<T, 1> add_triplet(const DeviceTripletMatrix<T, 1> &a, const 
     int Nb = b.triplet_count();
     DeviceTripletMatrix<T, 1> c;
     c.resize_triplets(Na + Nb);
+    c.reshape(a.rows(), a.cols());
     ParallelFor(256)
         .apply(Na,
                [c_device_values = c.values().viewer(), c_device_row_indices = c.row_indices().viewer(), c_device_col_indices = c.col_indices().viewer(),
@@ -102,8 +103,9 @@ void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &he
     static LinearSystemContext ctx;
     auto neg_grad = mult_vector<T>(grad, -1);
     int N = grad.size();
-    Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>> e_grad(neg_grad.data(), neg_grad.size());
-    DeviceDenseVector<T> grad_device(e_grad);
+    DeviceDenseVector<T> grad_device;
+    grad_device.resize(N);
+    grad_device.buffer_view().copy_from(neg_grad);
     DeviceCOOMatrix<T> A_coo;
     ctx.convert(hess, A_coo);
     DeviceCSRMatrix<T> A_csr;
@@ -116,3 +118,18 @@ void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &he
 }
 template void search_dir<float>(const DeviceBuffer<float> &grad, const DeviceTripletMatrix<float, 1> &hess, DeviceBuffer<float> &dir);
 template void search_dir<double>(const DeviceBuffer<double> &grad, const DeviceTripletMatrix<double, 1> &hess, DeviceBuffer<double> &dir);
+
+template <typename T>
+void display_vec(const DeviceBuffer<T> &vec)
+{
+    int N = vec.size();
+    ParallelFor(256)
+        .apply(N,
+               [vec = vec.cviewer()] __device__(int i) mutable
+               {
+                   printf("%d %f\n", i, vec(i));
+               })
+        .wait();
+}
+template void display_vec<float>(const DeviceBuffer<float> &vec);
+template void display_vec<double>(const DeviceBuffer<double> &vec);

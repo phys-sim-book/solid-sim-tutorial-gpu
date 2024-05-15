@@ -21,3 +21,6 @@ T max_vector(const DeviceBuffer<T> &a);
 
 template <typename T>
 void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &hess, DeviceBuffer<T> &dir);
+
+template <typename T>
+void display_vec(const DeviceBuffer<T> &vec);

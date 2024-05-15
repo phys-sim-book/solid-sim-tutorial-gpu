@@ -2,7 +2,7 @@
 using namespace muda;
 
 template <typename T>
-T devicesum(DeviceBuffer<T> &buffer)
+T devicesum(const DeviceBuffer<T> &buffer)
 {
     T sum = 0.0f;                  // Result of the reduction
     T *d_out;                      // Device memory to store the result of the reduction
@@ -18,8 +18,8 @@ T devicesum(DeviceBuffer<T> &buffer)
     cudaFree(d_out);
     return sum;
 }
-template float devicesum<float>(DeviceBuffer<float> &);
-template double devicesum<double>(DeviceBuffer<double> &);
+template float devicesum<float>(const DeviceBuffer<float> &);
+template double devicesum<double>(const DeviceBuffer<double> &);
 
 template <typename T, int Size>
 void __device__ make_PSD(const Eigen::Matrix<T, Size, Size> &hess, Eigen::Matrix<T, Size, Size> &PSD)

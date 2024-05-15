@@ -40,11 +40,14 @@ MassSpringEnergy<T, dim>::MassSpringEnergy(const std::vector<T> &x, const std::v
 	pimpl_->device_e.copy_from(e);
 	pimpl_->device_l2.copy_from(l2);
 	pimpl_->device_k.copy_from(k);
+	pimpl_->device_hess.resize_triplets(pimpl_->device_e.size() / 2 * dim * dim * 4);
+	pimpl_->device_hess.reshape(x.size(), x.size());
+	pimpl_->device_grad.resize(pimpl_->N * dim);
 	int size = e.size() / 2;
 }
 
 template <typename T, int dim>
-void MassSpringEnergy<T, dim>::update_x(DeviceBuffer<T> &x)
+void MassSpringEnergy<T, dim>::update_x(const DeviceBuffer<T> &x)
 {
 	pimpl_->device_x.view().copy_from(x);
 }
@@ -92,14 +95,15 @@ T MassSpringEnergy<T, dim>::val()
 } // Calculate the energy
 
 template <typename T, int dim>
-DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
+const DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_e = pimpl_->device_e;
 	auto &device_l2 = pimpl_->device_l2;
 	auto &device_k = pimpl_->device_k;
 	auto N = pimpl_->device_e.size() / 2;
-	DeviceBuffer<T> device_grad(pimpl_->N * dim);
+	auto &device_grad = pimpl_->device_grad;
+	device_grad.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_grad = device_grad.viewer()] __device__(int i) mutable
 						   {
 							int idx1= device_e(2 * i); // First node index
@@ -109,26 +113,27 @@ DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 							for (int d = 0; d < dim;d++){
 								diffi[d] = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
 								diff += diffi[d] * diffi[d];
-						   }
+							}
 						   T factor = 2 * device_k(i) * (diff / device_l2(i) -1);
 						   for(int d=0;d<dim;d++){
 							   atomicAdd(&device_grad(dim * idx1 + d), factor * diffi[d]);
 							   atomicAdd(&device_grad(dim * idx2 + d), -factor * diffi[d]);
-							   
+							  
 						   } })
 		.wait();
+	// display_vec(device_grad);
 	return device_grad;
 }
 
 template <typename T, int dim>
-DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
+const DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_e = pimpl_->device_e;
 	auto &device_l2 = pimpl_->device_l2;
 	auto &device_k = pimpl_->device_k;
 	auto N = device_e.size() / 2;
-	auto device_hess = pimpl_->device_hess;
+	auto &device_hess = pimpl_->device_hess;
 	auto device_hess_row_idx = device_hess.row_indices();
 	auto device_hess_col_idx = device_hess.col_indices();
 	auto device_hess_val = device_hess.values();
@@ -149,8 +154,7 @@ DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 		Eigen::Matrix<T, dim * 2, dim * 2> H_block, H_local;
 		H_block << H_diff, -H_diff,
 			-H_diff, H_diff;
-
-		//make_PSD(H_block, H_local);
+		make_PSD(H_block, H_local);
 		// add to global matrix
 		for (int ni = 0; ni < 2; ni++)
 			for (int nj = 0; nj < 2; nj++)
@@ -160,7 +164,7 @@ DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 					for (int d2 = 0; d2 < dim; d2++){
 						device_hess_row_idx(indStart + d1 * dim + d2)= idx[ni]*dim + d1;
 						device_hess_col_idx(indStart + d1 * dim + d2)= idx[nj] * dim + d2;
-						device_hess_val(indStart + d1 * dim + d2)= H_local(ni * dim + d1, nj * dim + d2);
+						device_hess_val(indStart + d1 * dim + d2) = H_local(ni * dim + d1, nj * dim + d2);
 					}
 			} })
 		.wait();

@@ -4,7 +4,7 @@
 #include <Eigen/Dense>
 // utility functions
 template <typename T>
-T devicesum(muda::DeviceBuffer<T> &buffer);
+T devicesum(const muda::DeviceBuffer<T> &buffer);
 
 template <typename T, int Size>
 void __device__ make_PSD(const Eigen::Matrix<T, Size, Size> &hess, Eigen::Matrix<T, Size, Size> &PSD);

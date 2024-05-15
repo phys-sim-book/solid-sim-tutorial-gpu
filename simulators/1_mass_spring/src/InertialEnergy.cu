@@ -39,6 +39,11 @@ InertialEnergy<T, dim>::InertialEnergy(int N, T m) : pimpl_{std::make_unique<Imp
 template <typename T, int dim>
 InertialEnergy<T, dim>::Impl::Impl(int N_, T m_) : N(N_), m(m_)
 {
+	device_x.resize(N * dim);
+	device_x_tilde.resize(N * dim);
+	device_hess.resize_triplets(N * dim);
+	device_hess.reshape(N * dim, N * dim);
+	device_grad.resize(N * dim);
 }
 template <typename T, int dim>
 void InertialEnergy<T, dim>::generate_hess()
@@ -54,18 +59,20 @@ void InertialEnergy<T, dim>::generate_hess()
 				   device_hess_row_indices(i) = i;
 				   device_hess_col_indices(i) = i;
 				   device_hess_values(i) = m;
+				   // std::cout << device_hess_values(i) << ' ' << device_hess_row_indices(i) << ' ' << device_hess_col_indices(i) << std::endl;
+				   // printf("%f %d %d\n", device_hess_values(i), device_hess_row_indices(i), device_hess_col_indices(i));
 			   })
 		.wait();
 }
 
 template <typename T, int dim>
-void InertialEnergy<T, dim>::update_x(DeviceBuffer<T> &x)
+void InertialEnergy<T, dim>::update_x(const DeviceBuffer<T> &x)
 {
 	pimpl_->device_x.view().copy_from(x);
 }
 
 template <typename T, int dim>
-void InertialEnergy<T, dim>::update_x_tilde(DeviceBuffer<T> &x_tilde)
+void InertialEnergy<T, dim>::update_x_tilde(const DeviceBuffer<T> &x_tilde)
 {
 	pimpl_->device_x_tilde.view().copy_from(x_tilde);
 }
@@ -95,11 +102,11 @@ T InertialEnergy<T, dim>::val()
 }
 
 template <typename T, int dim>
-DeviceBuffer<T> &InertialEnergy<T, dim>::grad()
+const DeviceBuffer<T> &InertialEnergy<T, dim>::grad()
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_x_tilde = pimpl_->device_x_tilde;
-	auto &m = pimpl_->m;
+	auto m = pimpl_->m;
 	auto N = pimpl_->N * dim;
 	auto &device_grad = pimpl_->device_grad;
 	ParallelFor(256)
@@ -109,11 +116,12 @@ DeviceBuffer<T> &InertialEnergy<T, dim>::grad()
 				   device_grad(i) = m * (device_x(i) - device_x_tilde(i));
 			   })
 		.wait();
+	// display_vec(device_grad);
 	return device_grad;
 } // Calculate the gradient of the energy
 
 template <typename T, int dim>
-DeviceTripletMatrix<T, 1> &InertialEnergy<T, dim>::hess()
+const DeviceTripletMatrix<T, 1> &InertialEnergy<T, dim>::hess()
 {
 	return pimpl_->device_hess;
 } // Calculate the Hessian matrix of the energy

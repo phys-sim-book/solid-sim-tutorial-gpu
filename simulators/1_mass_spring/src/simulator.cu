@@ -18,9 +18,9 @@ struct MassSpringSimulator<T, dim>::Impl
     InertialEnergy<T, dim> inertialenergy;
     MassSpringEnergy<T, dim> massspringenergy;
     Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg);
-    void update_x(DeviceBuffer<T> &new_x);
-    void update_x_tilde(DeviceBuffer<T> &new_x_tilde);
-    void update_v(DeviceBuffer<T> &new_v);
+    void update_x(const DeviceBuffer<T> &new_x);
+    void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
+    void update_v(const DeviceBuffer<T> &new_v);
     T IP_val();
     void step_forward();
     void draw();
@@ -110,16 +110,13 @@ void MassSpringSimulator<T, dim>::Impl::step_forward()
     T E_last = IP_val();
     DeviceBuffer<T> p = search_direction();
     T residual = max_vector(p) / h;
-    // printf("Initial residual %f\n", residual);
+    std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
-        // std::cout << "Iteration " << iter << ":\n";
-        // std::cout << "residual = " << residual << "\n";
-
         // Line search
         T alpha = 1;
         DeviceBuffer<T> x0 = x;
-        update_x(add_vector<T>(x, p, 1.0, alpha));
+        update_x(add_vector<T>(x0, p, 1.0, alpha));
         while (IP_val() > E_last)
         {
             alpha /= 2;
@@ -127,6 +124,7 @@ void MassSpringSimulator<T, dim>::Impl::step_forward()
         }
         // std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
+        // std::cout << "Iteration " << iter << " residual " << residual << "E_last" << E_last << "\n";
         p = search_direction();
         residual = max_vector(p) / h;
         iter += 1;
@@ -144,20 +142,20 @@ T MassSpringSimulator<T, dim>::Impl::screen_projection_y(T point)
     return resolution - (offset + scale * point);
 }
 template <typename T, int dim>
-void MassSpringSimulator<T, dim>::Impl::update_x(DeviceBuffer<T> &new_x)
+void MassSpringSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
 {
     inertialenergy.update_x(new_x);
     massspringenergy.update_x(new_x);
     new_x.copy_to(x);
 }
 template <typename T, int dim>
-void MassSpringSimulator<T, dim>::Impl::update_x_tilde(DeviceBuffer<T> &new_x_tilde)
+void MassSpringSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
     inertialenergy.update_x_tilde(new_x_tilde);
     new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
-void MassSpringSimulator<T, dim>::Impl::update_v(DeviceBuffer<T> &new_v)
+void MassSpringSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
     new_v.copy_to(v);
 }
@@ -197,7 +195,6 @@ T MassSpringSimulator<T, dim>::Impl::IP_val()
 template <typename T, int dim>
 DeviceBuffer<T> MassSpringSimulator<T, dim>::Impl::IP_grad()
 {
-
     return add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h);
 }
 
@@ -206,14 +203,14 @@ DeviceTripletMatrix<T, 1> MassSpringSimulator<T, dim>::Impl::IP_hess()
 {
     DeviceTripletMatrix<T, 1> inertial_hess = inertialenergy.hess();
     DeviceTripletMatrix<T, 1> massspring_hess = massspringenergy.hess();
-    DeviceTripletMatrix<T, 1> hess;
-    hess = add_triplet<T>(inertial_hess, massspring_hess, 1.0, h * h);
-    return inertial_hess;
+    DeviceTripletMatrix<T, 1> hess = add_triplet<T>(inertial_hess, massspring_hess, 1.0, h * h);
+    return hess;
 }
 template <typename T, int dim>
 DeviceBuffer<T> MassSpringSimulator<T, dim>::Impl::search_direction()
 {
     DeviceBuffer<T> dir;
+    dir.resize(x.size());
     search_dir(IP_grad(), IP_hess(), dir);
     return dir;
 }
