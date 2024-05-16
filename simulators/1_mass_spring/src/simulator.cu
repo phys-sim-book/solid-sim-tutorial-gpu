@@ -110,7 +110,7 @@ void MassSpringSimulator<T, dim>::Impl::step_forward()
     T E_last = IP_val();
     DeviceBuffer<T> p = search_direction();
     T residual = max_vector(p) / h;
-    std::cout << "Initial residual " << residual << "\n";
+    // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
         // Line search
