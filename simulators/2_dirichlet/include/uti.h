@@ -19,8 +19,11 @@ DeviceTripletMatrix<T, 1> add_triplet(const DeviceTripletMatrix<T, 1> &a, const 
 template <typename T>
 T max_vector(const DeviceBuffer<T> &a);
 
-template <typename T>
-void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &hess, DeviceBuffer<T> &dir);
+template <typename T, int dim>
+void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &hess, DeviceBuffer<T> &dir, const DeviceBuffer<int> &DBC);
 
 template <typename T>
 void display_vec(const DeviceBuffer<T> &vec);
+
+template <typename T, int dim>
+void set_DBC(DeviceBuffer<T> &grad, DeviceCSRMatrix<T> &hess, const DeviceBuffer<int> &DBC);
