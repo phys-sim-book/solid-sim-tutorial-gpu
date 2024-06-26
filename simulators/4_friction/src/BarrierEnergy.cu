@@ -184,13 +184,13 @@ template class BarrierEnergy<double, 2>;
 template class BarrierEnergy<double, 3>;
 
 template <typename T, int dim>
-const DeviceBuffer<T> &BarrierEnergy<T, dim>::compute_mu_lambda(T mu)
+const DeviceBuffer<T> BarrierEnergy<T, dim>::compute_mu_lambda(T mu)
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_n = pimpl_->device_n;
 	auto &device_o = pimpl_->device_o;
 	auto &device_contact_area = pimpl_->device_contact_area;
-	int N = device_x.size();
+	int N = device_x.size() / dim;
 	DeviceBuffer<T> device_mu_lambda(N);
 	device_mu_lambda.fill(0);
 	ParallelFor(256)

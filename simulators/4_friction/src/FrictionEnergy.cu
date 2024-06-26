@@ -36,14 +36,14 @@ FrictionEnergy<T, dim>::FrictionEnergy(const FrictionEnergy<T, dim> &rhs)
     : pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-FrictionEnergy<T, dim>::FrictionEnergy(const std::vector<T> &v, const std::vector<T> &mu_lambda, T hhat, const Eigen::Matrix<T, dim, 1> &n)
+FrictionEnergy<T, dim>::FrictionEnergy(const std::vector<T> &v, T hhat, const std::vector<T> &n)
     : pimpl_{std::make_unique<Impl>()}
 {
     pimpl_->N = v.size() / dim;
     pimpl_->device_v.copy_from(v);
-    pimpl_->device_mu_lambda.copy_from(mu_lambda);
+    pimpl_->device_mu_lambda.resize(pimpl_->N);
     pimpl_->hhat = hhat;
-    pimpl_->n = n;
+    pimpl_->n = Eigen::Map<const Eigen::Matrix<T, dim, 1>>(n.data());
     pimpl_->device_grad.resize(pimpl_->N * dim);
     pimpl_->device_hess.resize_triplets(pimpl_->N * dim * dim);
     pimpl_->device_hess.reshape(v.size(), v.size());
@@ -54,9 +54,14 @@ void FrictionEnergy<T, dim>::update_v(const DeviceBuffer<T> &v)
 {
     pimpl_->device_v.view().copy_from(v);
 }
+template <typename T, int dim>
+void FrictionEnergy<T, dim>::update_mu_lambda(const DeviceBuffer<T> &mu_lambda)
+{
+    pimpl_->device_mu_lambda.view().copy_from(mu_lambda);
+}
 
 template <typename T, int dim>
-T FrictionEnergy<T, dim>::f0(T vbarnorm, T Epsv, T hhat)
+T __device__ FrictionEnergy<T, dim>::f0(T vbarnorm, T Epsv, T hhat)
 {
     if (vbarnorm >= Epsv)
     {
@@ -65,13 +70,13 @@ T FrictionEnergy<T, dim>::f0(T vbarnorm, T Epsv, T hhat)
     else
     {
         T vbarnormhhat = vbarnorm * hhat;
-        T Epsvhhat = Epsv * hhat;
+        T epsvhhat = Epsv * hhat;
         return vbarnormhhat * vbarnormhhat * (-vbarnormhhat / 3.0 + epsvhhat) / (epsvhhat * epsvhhat) + epsvhhat / 3.0;
     }
 }
 
 template <typename T, int dim>
-T FrictionEnergy<T, dim>::f1_div_vbarnorm(T vbarnorm, T Epsv)
+T __device__ FrictionEnergy<T, dim>::f1_div_vbarnorm(T vbarnorm, T Epsv)
 {
     if (vbarnorm >= Epsv)
     {
@@ -84,7 +89,7 @@ T FrictionEnergy<T, dim>::f1_div_vbarnorm(T vbarnorm, T Epsv)
 }
 
 template <typename T, int dim>
-T FrictionEnergy<T, dim>::f_hess_term(T vbarnorm, T Epsv)
+T __device__ FrictionEnergy<T, dim>::f_hess_term(T vbarnorm, T Epsv)
 {
     if (vbarnorm >= Epsv)
     {
@@ -97,7 +102,7 @@ T FrictionEnergy<T, dim>::f_hess_term(T vbarnorm, T Epsv)
 }
 
 template <typename T, int dim>
-T Energy<T, dim>::val()
+T FrictionEnergy<T, dim>::val()
 {
     auto &device_v = pimpl_->device_v;
     auto &device_mu_lambda = pimpl_->device_mu_lambda;
@@ -111,7 +116,11 @@ T Energy<T, dim>::val()
         Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
         if (device_mu_lambda(i) > 0)
         {
-            Eigen::Matrix<T, dim, 1> v = device_v.segment(i * dim, dim);
+            Eigen::Matrix<T, dim, 1> v;
+            for (int j = 0; j < dim; ++j)
+            {
+                v(j) = device_v(i * dim + j);
+            }
             Eigen::Matrix<T, dim, 1> vbar = T_mat * v;
             T vbarnorm = vbar.norm();
             T val = f0(vbarnorm, epsv, hhat);
@@ -123,7 +132,7 @@ T Energy<T, dim>::val()
 }
 
 template <typename T, int dim>
-const DeviceBuffer<T> &Energy<T, dim>::grad()
+const DeviceBuffer<T> &FrictionEnergy<T, dim>::grad()
 {
     auto &device_v = pimpl_->device_v;
     auto &device_mu_lambda = pimpl_->device_mu_lambda;
@@ -138,7 +147,11 @@ const DeviceBuffer<T> &Energy<T, dim>::grad()
         Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
         if (device_mu_lambda(i) > 0)
         {
-            Eigen::Matrix<T, dim, 1> v = device_v.segment(i * dim, dim);
+            Eigen::Matrix<T, dim, 1> v;
+            for (int j = 0; j < dim; ++j)
+            {
+                v(j) = device_v(i * dim + j);
+            }
             Eigen::Matrix<T, dim, 1> vbar = T_mat * v;
             T vbarnorm = vbar.norm();
             T grad_factor = f1_div_vbarnorm(vbarnorm, epsv);
@@ -153,7 +166,6 @@ const DeviceBuffer<T> &Energy<T, dim>::grad()
 
     return device_grad;
 }
-
 template <typename T, int dim>
 const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
 {
@@ -168,64 +180,38 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
     int N = device_v.size() / dim;
     ParallelFor(256).apply(N, [device_v = device_v.cviewer(), device_mu_lambda = device_mu_lambda.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), hhat, n, N, this] __device__(int i) mutable
                            {
-        T T_mat[dim][dim];
-        for(int r = 0; r < dim; ++r)
-        {
-            for(int c = 0; c < dim; ++c)
-            {
-                T_mat[r][c] = (r == c ? 1.0 : 0.0) - n(r) * n(c);
-            }
-        }
+        Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
         if (device_mu_lambda(i) > 0)
         {
-            T vbar[dim] = {0};
+            Eigen::Matrix<T, dim, 1> v;
+            for (int j = 0; j < dim; ++j)
+            {
+                v(j) = device_v(i * dim + j);
+            }
+            Eigen::Matrix<T, dim, 1> vbar = T_mat * v;
+            T vbarnorm = vbar.norm();
+            Eigen::Matrix<T, dim, dim> inner_term = Eigen::Matrix<T, dim, dim>::Identity() * f1_div_vbarnorm(vbarnorm, epsv);
+            if (vbarnorm != 0)
+            {
+                inner_term += f_hess_term(vbarnorm, epsv) / vbarnorm * vbar * vbar.transpose();
+            }
+            Eigen::Matrix<T, dim, dim> local_hess;
+            make_PSD(inner_term, local_hess);
+            local_hess = device_mu_lambda(i) * T_mat * local_hess * T_mat.transpose() / hhat;
             for (int j = 0; j < dim; ++j)
             {
                 for (int k = 0; k < dim; ++k)
                 {
-                    vbar[j] += T_mat[j][k] * device_v(i * dim + k);
-                }
-            }
-            T vbarnorm = 0;
-            for (int j = 0; j < dim; ++j)
-            {
-                vbarnorm += vbar[j] * vbar[j];
-            }
-            vbarnorm = sqrt(vbarnorm);
-            T inner_term[dim][dim];
-            for(int r = 0; r < dim; ++r)
-            {
-                for(int c = 0; c < dim; ++c)
-                {
-                    inner_term[r][c] = (r == c ? 1.0 : 0.0);
-                }
-            }
-            T hess_factor = f_hess_term(vbarnorm, epsv);
-            if (vbarnorm != 0)
-            {
-                for(int r = 0; r < dim; ++r)
-                {
-                    for(int c = 0; c < dim; ++c)
-                    {
-                        inner_term[r][c] += hess_factor / vbarnorm * vbar[r] * vbar[c];
-                    }
-                }
-            }
-            for(int j = 0; j < dim; ++j)
-            {
-                for(int k = 0; k < dim; ++k)
-                {
                     int idx = i * dim * dim + j * dim + k;
                     device_hess_row_idx(idx) = i * dim + j;
                     device_hess_col_idx(idx) = i * dim + k;
-                    device_hess_val(idx) = device_mu_lambda(i) * inner_term[j][k] / hhat;
+                    device_hess_val(idx) = local_hess(j, k);
                 }
             }
         } })
         .wait();
     return device_hess;
 }
-
 template class FrictionEnergy<float, 2>;
 template class FrictionEnergy<float, 3>;
 template class FrictionEnergy<double, 2>;

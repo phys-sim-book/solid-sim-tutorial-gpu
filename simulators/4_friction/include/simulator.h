@@ -12,7 +12,7 @@ public:
     ~FrictionSimulator();
     FrictionSimulator(FrictionSimulator &&rhs);
     FrictionSimulator &operator=(FrictionSimulator &&rhs);
-    FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, int n_seg);
+    FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, T mu, int n_seg);
     void run();
 
 private:

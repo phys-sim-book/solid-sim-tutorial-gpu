@@ -4,6 +4,7 @@
 #include "MassSpringEnergy.h"
 #include "GravityEnergy.h"
 #include "BarrierEnergy.h"
+#include "FrictionEnergy.h"
 #include <muda/muda.h>
 #include <muda/container.h>
 #include "uti.h"
@@ -12,7 +13,7 @@ template <typename T, int dim>
 struct FrictionSimulator<T, dim>::Impl
 {
     int n_seg;
-    T h, rho, side_len, initial_stretch, m, tol;
+    T h, rho, side_len, initial_stretch, m, tol, mu;
     int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
     std::vector<T> x, x_tilde, v, k, l2;
     std::vector<int> e;
@@ -23,7 +24,8 @@ struct FrictionSimulator<T, dim>::Impl
     MassSpringEnergy<T, dim> massspringenergy;
     GravityEnergy<T, dim> gravityenergy;
     BarrierEnergy<T, dim> barrierenergy;
-    Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg);
+    FrictionEnergy<T, dim> frictionenergy;
+    Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg);
     void update_x(const DeviceBuffer<T> &new_x);
     void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
     void update_v(const DeviceBuffer<T> &new_v);
@@ -49,11 +51,11 @@ template <typename T, int dim>
 FrictionSimulator<T, dim> &FrictionSimulator<T, dim>::operator=(FrictionSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-FrictionSimulator<T, dim>::FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, n_seg)}
+FrictionSimulator<T, dim>::FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, n_seg)}
 {
 }
 template <typename T, int dim>
-FrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg) : tol(tol_), h(h_), window(sf::VideoMode(resolution, resolution), "FrictionSimulator")
+FrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : tol(tol_), h(h_), mu(mu_), window(sf::VideoMode(resolution, resolution), "FrictionSimulator")
 {
     generate(side_len, n_seg, x, e);
     std::vector<int> DBC(x.size() / dim, 0);
@@ -88,6 +90,7 @@ FrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K,
     massspringenergy = MassSpringEnergy<T, dim>(x, e, l2, k);
     gravityenergy = GravityEnergy<T, dim>(N, m);
     barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, contact_area);
+    frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n);
     DeviceBuffer<T> x_device(x);
     update_x(x_device);
     device_DBC = DeviceBuffer<int>(DBC);
@@ -124,7 +127,9 @@ void FrictionSimulator<T, dim>::Impl::step_forward()
 {
     DeviceBuffer<T> x_tilde(x.size()); // Predictive position
     update_x_tilde(add_vector<T>(x, v, 1, h));
+    frictionenergy.update_mu_lambda(barrierenergy.compute_mu_lambda(mu));
     DeviceBuffer<T> x_n = x; // Copy current positions to x_n
+    update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
     int iter = 0;
     T E_last = IP_val();
     DeviceBuffer<T> p = search_direction();
@@ -136,10 +141,12 @@ void FrictionSimulator<T, dim>::Impl::step_forward()
         T alpha = barrierenergy.init_step_size(p);
         DeviceBuffer<T> x0 = x;
         update_x(add_vector<T>(x0, p, 1.0, alpha));
+        update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
         while (IP_val() > E_last)
         {
             alpha /= 2;
             update_x(add_vector<T>(x0, p, 1.0, alpha));
+            update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
         }
         std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
@@ -178,6 +185,7 @@ void FrictionSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_
 template <typename T, int dim>
 void FrictionSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
+    frictionenergy.update_v(new_v);
     new_v.copy_to(v);
 }
 template <typename T, int dim>
@@ -210,13 +218,13 @@ template <typename T, int dim>
 T FrictionSimulator<T, dim>::Impl::IP_val()
 {
 
-    return inertialenergy.val() + (massspringenergy.val() + gravityenergy.val() + barrierenergy.val()) * h * h;
+    return inertialenergy.val() + (massspringenergy.val() + gravityenergy.val() + barrierenergy.val() + frictionenergy.val()) * h * h;
 }
 
 template <typename T, int dim>
 DeviceBuffer<T> FrictionSimulator<T, dim>::Impl::IP_grad()
 {
-    return add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h);
+    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h), frictionenergy.grad(), 1.0, h * h);
 }
 
 template <typename T, int dim>
@@ -227,6 +235,8 @@ DeviceTripletMatrix<T, 1> FrictionSimulator<T, dim>::Impl::IP_hess()
     DeviceTripletMatrix<T, 1> hess = add_triplet<T>(inertial_hess, massspring_hess, 1.0, h * h);
     DeviceTripletMatrix<T, 1> barrier_hess = barrierenergy.hess();
     hess = add_triplet<T>(hess, barrier_hess, 1.0, h * h);
+    DeviceTripletMatrix<T, 1> friction_hess = frictionenergy.hess();
+    hess = add_triplet<T>(hess, friction_hess, 1.0, h * h);
     return hess;
 }
 template <typename T, int dim>

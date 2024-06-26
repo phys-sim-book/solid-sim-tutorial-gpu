@@ -38,6 +38,10 @@ void __device__ make_PSD(const Eigen::Matrix<T, Size, Size> &hess, Eigen::Matrix
     PSD = V * lamDiag * VT;
 }
 
+template void __device__ make_PSD<float, 2>(const Eigen::Matrix<float, 2, 2> &hess, Eigen::Matrix<float, 2, 2> &PSD);
+template void __device__ make_PSD<double, 2>(const Eigen::Matrix<double, 2, 2> &hess, Eigen::Matrix<double, 2, 2> &PSD);
+template void __device__ make_PSD<float, 3>(const Eigen::Matrix<float, 3, 3> &hess, Eigen::Matrix<float, 3, 3> &PSD);
+template void __device__ make_PSD<double, 3>(const Eigen::Matrix<double, 3, 3> &hess, Eigen::Matrix<double, 3, 3> &PSD);
 template void __device__ make_PSD<float, 4>(const Eigen::Matrix<float, 4, 4> &hess, Eigen::Matrix<float, 4, 4> &PSD);
 template void __device__ make_PSD<double, 4>(const Eigen::Matrix<double, 4, 4> &hess, Eigen::Matrix<double, 4, 4> &PSD);
 template void __device__ make_PSD<float, 6>(const Eigen::Matrix<float, 6, 6> &hess, Eigen::Matrix<float, 6, 6> &PSD);
