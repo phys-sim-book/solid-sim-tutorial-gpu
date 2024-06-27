@@ -11,7 +11,7 @@ template <typename T, int dim>
 struct BarrierEnergy<T, dim>::Impl
 {
 	DeviceBuffer<T> device_x;
-	DeviceBuffer<T> device_contact_area, device_n,device_n_ceil, device_o;
+	DeviceBuffer<T> device_contact_area, device_n, device_n_ceil, device_o;
 	int N;
 	DeviceBuffer<T> device_grad;
 	DeviceTripletMatrix<T, 1> device_hess;
@@ -39,11 +39,11 @@ BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<
 	pimpl_->device_x.copy_from(x);
 	pimpl_->device_contact_area.copy_from(contact_area);
 	std::vector<T> n_ceil(dim);
-	n_ceil[1]=-1;
+	n_ceil[1] = -1;
 	pimpl_->device_n_ceil.copy_from(n_ceil);
 	pimpl_->device_n.copy_from(n);
 	pimpl_->device_o.copy_from(o);
-	pimpl_->device_hess.resize_triplets((pimpl_->N *2-1)* dim * dim);
+	pimpl_->device_hess.resize_triplets((pimpl_->N * 2 - 1) * dim * dim);
 	pimpl_->device_hess.reshape(x.size(), x.size());
 	pimpl_->device_grad.resize(pimpl_->N * dim);
 }
@@ -75,7 +75,7 @@ T BarrierEnergy<T, dim>::val()
 							   device_val1(i)= kappa * device_contact_area(i) * dhat/2*(s-1)*log(s);
 						   } })
 		.wait();
-	ParallelFor(256).apply(N-1, [device_val2 = device_val2.viewer(), device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(),N] __device__(int i) mutable
+	ParallelFor(256).apply(N - 1, [device_val2 = device_val2.viewer(), device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(), N] __device__(int i) mutable
 						   { T d = 0;
 						   for(int j=0;j<dim;j++){
 							   d += device_n_ceil(j)*(device_x(i*dim+j)-device_x((N-1)*dim+j));
@@ -85,7 +85,7 @@ T BarrierEnergy<T, dim>::val()
 							   device_val2(i)= kappa * device_contact_area(i) * dhat/2*(s-1)*log(s);
 						   } })
 		.wait();
-	return devicesum(device_val1)+devicesum(device_val2);
+	return devicesum(device_val1) + devicesum(device_val2);
 } // Calculate the energy
 
 template <typename T, int dim>
@@ -115,7 +115,7 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 								   }
 							   } })
 		.wait();
-	ParallelFor(256).apply(N-1, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_grad = device_grad.viewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(),N] __device__(int i) mutable
+	ParallelFor(256).apply(N - 1, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_grad = device_grad.viewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(), N] __device__(int i) mutable
 
 						   {
 							   T d = 0;
@@ -131,7 +131,8 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 									   device_grad(i * dim + j) += grad;
 									   device_grad((N-1) * dim + j) -= grad;
 								   }
-							   } }).wait();
+							   } })
+		.wait();
 	return device_grad;
 }
 
@@ -178,7 +179,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 				}
 			} })
 		.wait();
-	ParallelFor(256).apply(N-1, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer()] __device__(int i) mutable
+	ParallelFor(256).apply(N - 1, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer()] __device__(int i) mutable
 						   {
 		T d = 0;
 		for (int j = 0; j < dim; j++)
@@ -206,7 +207,8 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 					device_hess_col_idx(idx) = (N-1) * dim + k;
 					device_hess_val(idx) = 0;
 				}
-			} }).wait();
+			} })
+		.wait();
 	return device_hess;
 
 } // Calculate the Hessian of the energy
@@ -240,9 +242,9 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
 		} })
 		.wait();
-	
+
 	ParallelFor(256)
-		.apply(N-1, [device_x = device_x.cviewer(), p = p.cviewer(), device_alpha = device_alpha.viewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(),N] __device__(int i) mutable
+		.apply(N - 1, [device_x = device_x.cviewer(), p = p.cviewer(), device_alpha = device_alpha.viewer(), device_n_ceil = device_n_ceil.cviewer(), device_o = device_o.cviewer(), N] __device__(int i) mutable
 
 			   {
 		T p_n = 0;
