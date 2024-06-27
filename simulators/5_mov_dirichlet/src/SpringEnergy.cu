@@ -83,12 +83,12 @@ T SpringEnergy<T, dim>::val()
                            {
 
             int idx = device_DBC(i);
-            Eigen::Matrix<T, dim, 1> diff;
+            T d = 0;
             for (int j = 0; j < dim; ++j)
             {
-                diff(j) = device_x(idx * dim + j) - device_DBC_target(i*dim + j);
+                d += (device_x(idx * dim + j) - device_DBC_target(i * dim + j)) * (device_x(idx * dim + j) - device_DBC_target(i * dim + j));
             }
-            device_val(i) = 0.5 * k * device_m(idx) * diff.dot(diff); })
+            device_val(i) = 0.5 * k *d; })
         .wait();
 
     return devicesum(device_val);
@@ -110,15 +110,10 @@ const DeviceBuffer<T> &SpringEnergy<T, dim>::grad()
                            {
 
             int idx = device_DBC(i);
-            Eigen::Matrix<T, dim, 1> grad;
             for (int j = 0; j < dim; ++j)
             {
-                grad(j) = device_x(idx * dim + j) - device_DBC_target(i*dim + j);
-            }
-            grad *= k * device_m(idx);
-            for (int j = 0; j < dim; ++j)
-            {
-                device_grad(idx * dim + j) = grad(j);
+                device_grad(idx * dim + j) = (device_x(idx * dim + j) - device_DBC_target(i * dim + j))* k * device_m(idx);
+                printf("grad[%d] = %f\n", idx * dim + j, device_grad(idx * dim + j));
             } })
         .wait();
 

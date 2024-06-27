@@ -67,7 +67,7 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     DBC_limit.push_back(0);
     DBC_limit.push_back(-0.6);
     DBC_v.push_back(0);
-    DBC_v.push_back(-0.5);
+    DBC_v.push_back(-1);
     DBC_stiff = 10;
     x.push_back(0);
     x.push_back(side_len * 0.6);
@@ -256,7 +256,7 @@ void MovDirichletSimulator<T, dim>::Impl::draw()
     }
 
     // Draw masses as circles
-    for (int i = 0; i < (x.size() - 1) / dim; ++i)
+    for (int i = 0; i < (x.size()) / dim; ++i)
     {
         sf::CircleShape circle(radius); // Set a fixed radius for each mass
         circle.setFillColor(sf::Color::Red);
@@ -276,7 +276,17 @@ T MovDirichletSimulator<T, dim>::Impl::IP_val()
 template <typename T, int dim>
 DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::IP_grad()
 {
-    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h), frictionenergy.grad(), 1.0, h * h), springenergy.grad(), 1.0, 1.0);
+    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
+                                                                                 massspringenergy.grad(), 1.0, h * h),
+                                                                   gravityenergy.grad(), 1.0, h * h),
+                                                     barrierenergy.grad(), 1.0, h * h),
+                                       frictionenergy.grad(), 1.0, h * h),
+                         springenergy.grad(), 1.0, 1.0);
+    // return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
+    //                                                                massspringenergy.grad(), 1.0, h * h),
+    //                                                  gravityenergy.grad(), 1.0, h * h),
+    //                                    barrierenergy.grad(), 1.0, h * h),
+    //                      frictionenergy.grad(), 1.0, h * h);
 }
 
 template <typename T, int dim>
