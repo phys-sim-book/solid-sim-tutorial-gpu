@@ -12,7 +12,7 @@ struct SpringEnergy<T, dim>::Impl
     DeviceBuffer<T> device_x;
     DeviceBuffer<T> device_m;
     DeviceBuffer<int> device_DBC;
-    DeviceBuffer<Eigen::Matrix<T, dim, 1>> device_DBC_target;
+    DeviceBuffer<T> device_DBC_target,device_DBC_v,device_DBC_limit;
     DeviceBuffer<T> device_grad;
     DeviceTripletMatrix<T, 1> device_hess;
     T k,h;
@@ -36,14 +36,16 @@ SpringEnergy<T, dim>::SpringEnergy(const SpringEnergy<T, dim> &rhs)
     : pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<T> &DBC_target, T k,T h)
+SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<T> &DBC_v, const std::vector<T> &DBC_limit,T k,T h)
     : pimpl_{std::make_unique<Impl>()}
 {
     pimpl_->N = x.size() / dim;
     pimpl_->device_x.copy_from(x);
     pimpl_->device_m.copy_from(m);
     pimpl_->device_DBC.copy_from(DBC);
-    pimpl_->device_DBC_target.copy_from(DBC_target);
+    pimpl_->device_DBC_v.copy_from(DBC_v);
+    pimpl_->device_DBC_limit.copy_from(DBC_limit);
+    pimpl_->device_DBC_target.resize(DBC.size() * dim);
     pimpl_->k = k;
     pimpl_->h = h;
     pimpl_->device_grad.resize(pimpl_->N * dim);
@@ -60,15 +62,39 @@ void SpringEnergy<T, dim>::update_x(const DeviceBuffer<T> &x)
 template <typename T, int dim>
 void SpringEnergy<T, dim>::update_DBC_target()
 {
-        // for i in range(0, len(DBC)):
-        // if (DBC_limit[i] - x_n[DBC[i]]).dot(DBC_v[i]) > 0:
-        //     DBC_target.append(x_n[DBC[i]] + h * DBC_v[i])
-        // else:
-        //     DBC_target.append(x_n[DBC[i]])
         auto &device_x = pimpl_->device_x;
         auto &device_DBC = pimpl_->device_DBC;
         auto &device_DBC_target = pimpl_->device_DBC_target;
         auto h = pimpl_->h;
+        auto &device_DBC_v = pimpl_->device_DBC_v;
+        auto &device_DBC_limit = pimpl_->device_DBC_limit;
+        int N = device_DBC.size();
+        device_DBC_target.fill(0);
+
+        ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_DBC = device_DBC.cviewer(), device_DBC_target = device_DBC_target.viewer(), device_DBC_v = device_DBC_v.cviewer(), h, device_DBC_limit = device_DBC_limit.cviewer()] __device__(int i) mutable
+                               {
+            int idx = device_DBC(i);
+            T d=0;
+            for (int j = 0; j < dim; ++j)
+            {
+                d += (device_DBC_limit(i*dim + j) - device_x(idx * dim + j)) * (device_DBC_v(i*dim + j));
+            }
+            if(d>0)
+            {
+                for (int j = 0; j < dim; ++j)
+                {
+                    device_DBC_target(i*dim + j) = device_x(idx * dim + j) + h * device_DBC_v(i*dim + j);
+                }
+            }
+            else
+            {
+                for (int j = 0; j < dim; ++j)
+                {
+                    device_DBC_target(i*dim + j) = device_x(idx*dim + j);
+                }
+            }
+        }).wait();
+
 
 }
 

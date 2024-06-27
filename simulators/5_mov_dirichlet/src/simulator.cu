@@ -94,6 +94,7 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     gravityenergy = GravityEnergy<T, dim>(N, m);
     barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, contact_area);
     frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n);
+    springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, std::vector<T>(N * dim, 0), std::vector<T>(N * dim, 0), 0, h);
     DeviceBuffer<T> x_device(x);
     update_x(x_device);
     device_DBC = DeviceBuffer<int>(DBC);
@@ -192,9 +193,9 @@ void MovDirichletSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
     new_v.copy_to(v);
 }
 template <typename T, int dim>
-void MovDirichletSimulator<T, dim>::update_DBC_target()
+void MovDirichletSimulator<T, dim>::Impl::update_DBC_target()
 {
-    
+    springenergy.update_DBC_target();
 }
 template <typename T, int dim>
 void MovDirichletSimulator<T, dim>::Impl::draw()

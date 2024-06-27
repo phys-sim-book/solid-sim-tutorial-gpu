@@ -10,7 +10,7 @@ template <typename T, int dim>
 class SpringEnergy
 {
 public:
-    SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<Eigen::Matrix<T, dim, 1>> &DBC_target, T k);
+    SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<T> &DBC_v,const std::vector<T> &DBC_limit, T k,T h);
     SpringEnergy();
     ~SpringEnergy();
     SpringEnergy(SpringEnergy &&rhs);
