@@ -5,12 +5,13 @@
 #include "GravityEnergy.h"
 #include "BarrierEnergy.h"
 #include "FrictionEnergy.h"
+#include "SpringEnergy.h"
 #include <muda/muda.h>
 #include <muda/container.h>
 #include "uti.h"
 using namespace muda;
 template <typename T, int dim>
-struct FrictionSimulator<T, dim>::Impl
+struct MovDirichletSimulator<T, dim>::Impl
 {
     int n_seg;
     T h, rho, side_len, initial_stretch, m, tol, mu;
@@ -25,10 +26,12 @@ struct FrictionSimulator<T, dim>::Impl
     GravityEnergy<T, dim> gravityenergy;
     BarrierEnergy<T, dim> barrierenergy;
     FrictionEnergy<T, dim> frictionenergy;
+    SpringEnergy<T, dim> springenergy;
     Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg);
     void update_x(const DeviceBuffer<T> &new_x);
     void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
     void update_v(const DeviceBuffer<T> &new_v);
+    void update_DBC_target();
     T IP_val();
     void step_forward();
     void draw();
@@ -39,23 +42,23 @@ struct FrictionSimulator<T, dim>::Impl
     T screen_projection_y(T point);
 };
 template <typename T, int dim>
-FrictionSimulator<T, dim>::FrictionSimulator() = default;
+MovDirichletSimulator<T, dim>::MovDirichletSimulator() = default;
 
 template <typename T, int dim>
-FrictionSimulator<T, dim>::~FrictionSimulator() = default;
+MovDirichletSimulator<T, dim>::~MovDirichletSimulator() = default;
 
 template <typename T, int dim>
-FrictionSimulator<T, dim>::FrictionSimulator(FrictionSimulator<T, dim> &&rhs) = default;
+MovDirichletSimulator<T, dim>::MovDirichletSimulator(MovDirichletSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-FrictionSimulator<T, dim> &FrictionSimulator<T, dim>::operator=(FrictionSimulator<T, dim> &&rhs) = default;
+MovDirichletSimulator<T, dim> &MovDirichletSimulator<T, dim>::operator=(MovDirichletSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-FrictionSimulator<T, dim>::FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, n_seg)}
+MovDirichletSimulator<T, dim>::MovDirichletSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, n_seg)}
 {
 }
 template <typename T, int dim>
-FrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : tol(tol_), h(h_), mu(mu_), window(sf::VideoMode(resolution, resolution), "FrictionSimulator")
+MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : tol(tol_), h(h_), mu(mu_), window(sf::VideoMode(resolution, resolution), "MovDirichletSimulator")
 {
     generate(side_len, n_seg, x, e);
     std::vector<int> DBC(x.size() / dim, 0);
@@ -97,7 +100,7 @@ FrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K,
     device_contact_area = DeviceBuffer<T>(contact_area);
 }
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::run()
+void MovDirichletSimulator<T, dim>::run()
 {
     assert(dim == 2);
     bool running = true;
@@ -123,7 +126,7 @@ void FrictionSimulator<T, dim>::run()
 }
 
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::Impl::step_forward()
+void MovDirichletSimulator<T, dim>::Impl::step_forward()
 {
     DeviceBuffer<T> x_tilde(x.size()); // Predictive position
     update_x_tilde(add_vector<T>(x, v, 1, h));
@@ -158,17 +161,17 @@ void FrictionSimulator<T, dim>::Impl::step_forward()
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
 }
 template <typename T, int dim>
-T FrictionSimulator<T, dim>::Impl::screen_projection_x(T point)
+T MovDirichletSimulator<T, dim>::Impl::screen_projection_x(T point)
 {
     return offset + scale * point;
 }
 template <typename T, int dim>
-T FrictionSimulator<T, dim>::Impl::screen_projection_y(T point)
+T MovDirichletSimulator<T, dim>::Impl::screen_projection_y(T point)
 {
     return resolution - (offset + scale * point);
 }
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
+void MovDirichletSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
 {
     inertialenergy.update_x(new_x);
     massspringenergy.update_x(new_x);
@@ -177,19 +180,24 @@ void FrictionSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
     new_x.copy_to(x);
 }
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
+void MovDirichletSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
     inertialenergy.update_x_tilde(new_x_tilde);
     new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
+void MovDirichletSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
     frictionenergy.update_v(new_v);
     new_v.copy_to(v);
 }
 template <typename T, int dim>
-void FrictionSimulator<T, dim>::Impl::draw()
+void MovDirichletSimulator<T, dim>::update_DBC_target()
+{
+    
+}
+template <typename T, int dim>
+void MovDirichletSimulator<T, dim>::Impl::draw()
 {
     window.clear(sf::Color::White); // Clear the previous frame
 
@@ -215,20 +223,20 @@ void FrictionSimulator<T, dim>::Impl::draw()
 }
 
 template <typename T, int dim>
-T FrictionSimulator<T, dim>::Impl::IP_val()
+T MovDirichletSimulator<T, dim>::Impl::IP_val()
 {
 
     return inertialenergy.val() + (massspringenergy.val() + gravityenergy.val() + barrierenergy.val() + frictionenergy.val()) * h * h;
 }
 
 template <typename T, int dim>
-DeviceBuffer<T> FrictionSimulator<T, dim>::Impl::IP_grad()
+DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::IP_grad()
 {
     return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h), frictionenergy.grad(), 1.0, h * h);
 }
 
 template <typename T, int dim>
-DeviceTripletMatrix<T, 1> FrictionSimulator<T, dim>::Impl::IP_hess()
+DeviceTripletMatrix<T, 1> MovDirichletSimulator<T, dim>::Impl::IP_hess()
 {
     DeviceTripletMatrix<T, 1> inertial_hess = inertialenergy.hess();
     DeviceTripletMatrix<T, 1> massspring_hess = massspringenergy.hess();
@@ -240,7 +248,7 @@ DeviceTripletMatrix<T, 1> FrictionSimulator<T, dim>::Impl::IP_hess()
     return hess;
 }
 template <typename T, int dim>
-DeviceBuffer<T> FrictionSimulator<T, dim>::Impl::search_direction()
+DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::search_direction()
 {
     DeviceBuffer<T> dir;
     dir.resize(x.size());
@@ -250,7 +258,7 @@ DeviceBuffer<T> FrictionSimulator<T, dim>::Impl::search_direction()
     return dir;
 }
 
-template class FrictionSimulator<float, 2>;
-template class FrictionSimulator<double, 2>;
-template class FrictionSimulator<float, 3>;
-template class FrictionSimulator<double, 3>;
+template class MovDirichletSimulator<float, 2>;
+template class MovDirichletSimulator<double, 2>;
+template class MovDirichletSimulator<float, 3>;
+template class MovDirichletSimulator<double, 3>;

@@ -15,7 +15,7 @@ struct SpringEnergy<T, dim>::Impl
     DeviceBuffer<Eigen::Matrix<T, dim, 1>> device_DBC_target;
     DeviceBuffer<T> device_grad;
     DeviceTripletMatrix<T, 1> device_hess;
-    T k;
+    T k,h;
     int N;
 };
 
@@ -36,7 +36,7 @@ SpringEnergy<T, dim>::SpringEnergy(const SpringEnergy<T, dim> &rhs)
     : pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<Eigen::Matrix<T, dim, 1>> &DBC_target, T k)
+SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T> &m, const std::vector<int> &DBC, const std::vector<T> &DBC_target, T k,T h)
     : pimpl_{std::make_unique<Impl>()}
 {
     pimpl_->N = x.size() / dim;
@@ -45,6 +45,7 @@ SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T>
     pimpl_->device_DBC.copy_from(DBC);
     pimpl_->device_DBC_target.copy_from(DBC_target);
     pimpl_->k = k;
+    pimpl_->h = h;
     pimpl_->device_grad.resize(pimpl_->N * dim);
     pimpl_->device_hess.resize_triplets(pimpl_->N * dim * dim);
     pimpl_->device_hess.reshape(x.size(), x.size());
@@ -54,6 +55,21 @@ template <typename T, int dim>
 void SpringEnergy<T, dim>::update_x(const DeviceBuffer<T> &x)
 {
     pimpl_->device_x.view().copy_from(x);
+}
+
+template <typename T, int dim>
+void SpringEnergy<T, dim>::update_DBC_target()
+{
+        // for i in range(0, len(DBC)):
+        // if (DBC_limit[i] - x_n[DBC[i]]).dot(DBC_v[i]) > 0:
+        //     DBC_target.append(x_n[DBC[i]] + h * DBC_v[i])
+        // else:
+        //     DBC_target.append(x_n[DBC[i]])
+        auto &device_x = pimpl_->device_x;
+        auto &device_DBC = pimpl_->device_DBC;
+        auto &device_DBC_target = pimpl_->device_DBC_target;
+        auto h = pimpl_->h;
+
 }
 
 template <typename T, int dim>
@@ -75,7 +91,7 @@ T SpringEnergy<T, dim>::val()
             Eigen::Matrix<T, dim, 1> diff;
             for (int j = 0; j < dim; ++j)
             {
-                diff(j) = device_x(idx * dim + j) - device_DBC_target(i)(j);
+                diff(j) = device_x(idx * dim + j) - device_DBC_target(i*dim + j);
             }
             device_val(i) = 0.5 * k * device_m(idx) * diff.dot(diff); })
         .wait();
@@ -102,7 +118,7 @@ const DeviceBuffer<T> &SpringEnergy<T, dim>::grad()
             Eigen::Matrix<T, dim, 1> grad;
             for (int j = 0; j < dim; ++j)
             {
-                grad(j) = device_x(idx * dim + j) - device_DBC_target(i)(j);
+                grad(j) = device_x(idx * dim + j) - device_DBC_target(i*dim + j);
             }
             grad *= k * device_m(idx);
             for (int j = 0; j < dim; ++j)

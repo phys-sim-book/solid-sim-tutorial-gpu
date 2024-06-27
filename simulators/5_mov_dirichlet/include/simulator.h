@@ -5,14 +5,14 @@
 #include "square_mesh.h"
 #include <iostream>
 template <typename T, int dim>
-class FrictionSimulator
+class MovDirichletSimulator
 {
 public:
-    FrictionSimulator();
-    ~FrictionSimulator();
-    FrictionSimulator(FrictionSimulator &&rhs);
-    FrictionSimulator &operator=(FrictionSimulator &&rhs);
-    FrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, T mu, int n_seg);
+    MovDirichletSimulator();
+    ~MovDirichletSimulator();
+    MovDirichletSimulator(MovDirichletSimulator &&rhs);
+    MovDirichletSimulator &operator=(MovDirichletSimulator &&rhs);
+    MovDirichletSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, T mu, int n_seg);
     void run();
 
 private:
