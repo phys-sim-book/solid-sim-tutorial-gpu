@@ -14,10 +14,10 @@ template <typename T, int dim>
 struct MovDirichletSimulator<T, dim>::Impl
 {
     int n_seg;
-    T h, rho, side_len, initial_stretch, m, tol, mu;
+    T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff;
     int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
-    std::vector<T> x, x_tilde, v, k, l2;
-    std::vector<int> e;
+    std::vector<T> x, x_tilde, v, k, l2, DBC_limit, DBC_v, DBC_target;
+    std::vector<int> e, DBC, DBC_satisfied;
     DeviceBuffer<int> device_DBC;
     DeviceBuffer<T> device_contact_area;
     sf::RenderWindow window;
@@ -32,6 +32,7 @@ struct MovDirichletSimulator<T, dim>::Impl
     void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
     void update_v(const DeviceBuffer<T> &new_v);
     void update_DBC_target();
+    void update_DBC_stiff(T new_DBC_stiff);
     T IP_val();
     void step_forward();
     void draw();
@@ -61,10 +62,18 @@ template <typename T, int dim>
 MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, int n_seg) : tol(tol_), h(h_), mu(mu_), window(sf::VideoMode(resolution, resolution), "MovDirichletSimulator")
 {
     generate(side_len, n_seg, x, e);
-    std::vector<int> DBC(x.size() / dim, 0);
+    DBC.push_back((n_seg + 1) * (n_seg + 1));
+    DBC_target.resize(DBC.size() * dim);
+    DBC_limit.push_back(0);
+    DBC_limit.push_back(-0.6);
+    DBC_v.push_back(0);
+    DBC_v.push_back(-0.5);
+    DBC_stiff = 10;
+    x.push_back(0);
+    x.push_back(side_len * 0.6);
     std::vector<T> contact_area(x.size() / dim, side_len / n_seg);
     std::vector<T> ground_n(dim);
-    ground_n[0] = 0.1, ground_n[1] = 1;
+    ground_n[0] = 0, ground_n[1] = 1;
     T n_norm = ground_n[0] * ground_n[0] + ground_n[1] * ground_n[1];
     n_norm = sqrt(n_norm);
     for (int i = 0; i < dim; i++)
@@ -94,7 +103,7 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     gravityenergy = GravityEnergy<T, dim>(N, m);
     barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, contact_area);
     frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n);
-    springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, std::vector<T>(N * dim, 0), std::vector<T>(N * dim, 0), 0, h);
+    springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, DBC_stiff);
     DeviceBuffer<T> x_device(x);
     update_x(x_device);
     device_DBC = DeviceBuffer<int>(DBC);
@@ -132,6 +141,8 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
     DeviceBuffer<T> x_tilde(x.size()); // Predictive position
     update_x_tilde(add_vector<T>(x, v, 1, h));
     frictionenergy.update_mu_lambda(barrierenergy.compute_mu_lambda(mu));
+    update_DBC_target();
+    update_DBC_stiff(10);
     DeviceBuffer<T> x_n = x; // Copy current positions to x_n
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
     int iter = 0;
@@ -139,8 +150,13 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
     DeviceBuffer<T> p = search_direction();
     T residual = max_vector(p) / h;
     // std::cout << "Initial residual " << residual << "\n";
-    while (residual > tol)
+    while (residual > tol || DBC_satisfied.back() != 1) // use last one for simplisity, should check all
     {
+        if (residual <= tol && DBC_satisfied.back() != 1)
+        {
+            update_DBC_stiff(DBC_stiff * 2);
+            E_last = IP_val();
+        }
         // Line search
         T alpha = barrierenergy.init_step_size(p);
         DeviceBuffer<T> x0 = x;
@@ -195,7 +211,35 @@ void MovDirichletSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 template <typename T, int dim>
 void MovDirichletSimulator<T, dim>::Impl::update_DBC_target()
 {
-    springenergy.update_DBC_target();
+    for (int i = 0; i < DBC.size(); i++)
+    {
+        T diff = 0;
+        for (int d = 0; d < dim; d++)
+        {
+            diff += (DBC_limit[i * dim + d] - x[DBC[i] * dim + d]) * DBC_v[i * dim + d];
+        }
+        if (diff > 0)
+        {
+            for (int d = 0; d < dim; d++)
+            {
+                DBC_target[i * dim + d] = x[DBC[i] * dim + d] + h * DBC_v[i * dim + d];
+            }
+        }
+        else
+        {
+            for (int d = 0; d < dim; d++)
+            {
+                DBC_target[i * dim + d] = x[DBC[i] * dim + d];
+            }
+        }
+    }
+    springenergy.update_DBC_target(DBC_target);
+}
+template <typename T, int dim>
+void MovDirichletSimulator<T, dim>::Impl::update_DBC_stiff(T new_DBC_stiff)
+{
+    DBC_stiff = new_DBC_stiff;
+    springenergy.update_k(new_DBC_stiff);
 }
 template <typename T, int dim>
 void MovDirichletSimulator<T, dim>::Impl::draw()
@@ -212,14 +256,13 @@ void MovDirichletSimulator<T, dim>::Impl::draw()
     }
 
     // Draw masses as circles
-    for (int i = 0; i < x.size() / dim; ++i)
+    for (int i = 0; i < (x.size() - 1) / dim; ++i)
     {
         sf::CircleShape circle(radius); // Set a fixed radius for each mass
         circle.setFillColor(sf::Color::Red);
         circle.setPosition(screen_projection_x(x[i * dim]) - radius, screen_projection_y(x[i * dim + 1]) - radius); // Center the circle on the mass
         window.draw(circle);
     }
-
     window.display(); // Display the rendered frame
 }
 
@@ -227,13 +270,13 @@ template <typename T, int dim>
 T MovDirichletSimulator<T, dim>::Impl::IP_val()
 {
 
-    return inertialenergy.val() + (massspringenergy.val() + gravityenergy.val() + barrierenergy.val() + frictionenergy.val()) * h * h;
+    return inertialenergy.val() + (massspringenergy.val() + gravityenergy.val() + barrierenergy.val() + frictionenergy.val()) * h * h + springenergy.val();
 }
 
 template <typename T, int dim>
 DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::IP_grad()
 {
-    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h), frictionenergy.grad(), 1.0, h * h);
+    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(), massspringenergy.grad(), 1.0, h * h), gravityenergy.grad(), 1.0, h * h), barrierenergy.grad(), 1.0, h * h), frictionenergy.grad(), 1.0, h * h), springenergy.grad(), 1.0, 1.0);
 }
 
 template <typename T, int dim>
@@ -246,6 +289,8 @@ DeviceTripletMatrix<T, 1> MovDirichletSimulator<T, dim>::Impl::IP_hess()
     hess = add_triplet<T>(hess, barrier_hess, 1.0, h * h);
     DeviceTripletMatrix<T, 1> friction_hess = frictionenergy.hess();
     hess = add_triplet<T>(hess, friction_hess, 1.0, h * h);
+    DeviceTripletMatrix<T, 1> spring_hess = springenergy.hess();
+    hess = add_triplet<T>(hess, spring_hess, 1.0, 1.0);
     return hess;
 }
 template <typename T, int dim>
@@ -255,7 +300,21 @@ DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::search_direction()
     dir.resize(x.size());
     DeviceBuffer<T> grad = IP_grad();
     DeviceTripletMatrix<T, 1> hess = IP_hess();
-    search_dir<T, dim>(grad, hess, dir, device_DBC);
+    // check whether each DBC is satisfied
+    DBC_satisfied.resize(x.size() / dim, 0);
+    for (int i = 0; i < DBC.size(); i++)
+    {
+        T diff = 0;
+        for (int d = 0; d < dim; d++)
+        {
+            diff += (x[DBC[i] * dim + d] - DBC_target[i * dim + d]) * (x[DBC[i] * dim + d] - DBC_target[i * dim + d]);
+        }
+        if (diff / h < tol)
+        {
+            DBC_satisfied[DBC[i]] = 1;
+        }
+    }
+    search_dir<T, dim>(grad, hess, dir, device_DBC, DBC_target, DBC_satisfied);
     return dir;
 }
 
