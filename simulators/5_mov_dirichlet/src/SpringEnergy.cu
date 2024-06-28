@@ -46,7 +46,7 @@ SpringEnergy<T, dim>::SpringEnergy(const std::vector<T> &x, const std::vector<T>
     pimpl_->device_DBC_target.resize(DBC.size() * dim);
     pimpl_->k = k;
     pimpl_->device_grad.resize(pimpl_->N * dim);
-    pimpl_->device_hess.resize_triplets(pimpl_->N * dim * dim);
+    pimpl_->device_hess.resize_triplets(DBC.size() * dim);
     pimpl_->device_hess.reshape(x.size(), x.size());
 }
 
@@ -81,17 +81,16 @@ T SpringEnergy<T, dim>::val()
 
     ParallelFor(256).apply(N, [device_val = device_val.viewer(), device_x = device_x.cviewer(), device_m = device_m.cviewer(), device_DBC = device_DBC.cviewer(), device_DBC_target = device_DBC_target.cviewer(), k] __device__(int i) mutable
                            {
-
-            int idx = device_DBC(i);
-            T d = 0;
-            for (int j = 0; j < dim; ++j)
-            {
-                d += (device_x(idx * dim + j) - device_DBC_target(i * dim + j)) * (device_x(idx * dim + j) - device_DBC_target(i * dim + j));
-            }
-            device_val(i) = 0.5 * k *d; })
+        int idx = device_DBC(i); 
+        T d = 0;
+        for (int j = 0; j < dim; ++j)
+        {
+            d += (device_x(idx * dim + j) - device_DBC_target(i * dim + j)) * (device_x(idx * dim + j) - device_DBC_target(i * dim + j));
+        }
+        device_val(i) = 0.5 * k * device_m(idx) * d; })
         .wait();
-
-    return devicesum(device_val);
+    T ans = devicesum(device_val);
+    return ans;
 }
 
 template <typename T, int dim>
@@ -108,12 +107,10 @@ const DeviceBuffer<T> &SpringEnergy<T, dim>::grad()
 
     ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_m = device_m.cviewer(), device_DBC = device_DBC.cviewer(), device_DBC_target = device_DBC_target.cviewer(), device_grad = device_grad.viewer(), k] __device__(int i) mutable
                            {
-
             int idx = device_DBC(i);
             for (int j = 0; j < dim; ++j)
             {
                 device_grad(idx * dim + j) = (device_x(idx * dim + j) - device_DBC_target(i * dim + j))* k * device_m(idx);
-                printf("grad[%d] = %f\n", idx * dim + j, device_grad(idx * dim + j));
             } })
         .wait();
 

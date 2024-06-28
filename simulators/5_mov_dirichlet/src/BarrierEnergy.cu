@@ -40,10 +40,11 @@ BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<
 	pimpl_->device_contact_area.copy_from(contact_area);
 	std::vector<T> n_ceil(dim);
 	n_ceil[1] = -1;
+	n_ceil[0] = 0;
 	pimpl_->device_n_ceil.copy_from(n_ceil);
 	pimpl_->device_n.copy_from(n);
 	pimpl_->device_o.copy_from(o);
-	pimpl_->device_hess.resize_triplets((pimpl_->N * 2 - 1) * dim * dim);
+	pimpl_->device_hess.resize_triplets(pimpl_->N * dim * dim + (pimpl_->N - 1) * dim * dim * 4);
 	pimpl_->device_hess.reshape(x.size(), x.size());
 	pimpl_->device_grad.resize(pimpl_->N * dim);
 }
@@ -129,7 +130,7 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 								   {
 									   T grad =device_contact_area(i) * dhat * (kappa / 2 * (log(s) / dhat + (s - 1) / d)) * device_n_ceil(j);
 									   device_grad(i * dim + j) += grad;
-									   device_grad((N-1) * dim + j) -= grad;
+									   atomicAdd(&device_grad((N-1) * dim + j), -grad);
 								   }
 							   } })
 		.wait();
@@ -156,7 +157,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 		{
 			d += device_n(j) * (device_x(i * dim + j) - device_o(j));
 		}
-		if (d < dhat)
+
 			for (int j = 0; j < dim; j++)
 			{
 				for (int k = 0; k < dim; k++)
@@ -164,18 +165,10 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 					int idx = i * dim * dim + j * dim + k;
 					device_hess_row_idx(idx) = i * dim + j;
 					device_hess_col_idx(idx) = i * dim + k;
-					device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n(j) * device_n(k);
-				}
-			}
-		else
-			for (int j = 0; j < dim; j++)
-			{
-				for (int k = 0; k < dim; k++)
-				{
-					int idx = i * dim * dim + j * dim + k;
-					device_hess_row_idx(idx) = i * dim + j;
-					device_hess_col_idx(idx) = i * dim + k;
-					device_hess_val(idx) = 0;
+					if (d < dhat)
+						device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n(j) * device_n(k);
+					else
+						device_hess_val(idx) = 0;
 				}
 			} })
 		.wait();
@@ -184,30 +177,27 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 		T d = 0;
 		for (int j = 0; j < dim; j++)
 		{
-			d += device_n_ceil(j) * (device_x(i * dim + j) - device_x((N-1) * dim + j));
+			d += device_n_ceil(j) * (device_x(i * dim + j) - device_x((N - 1) * dim + j));
 		}
-		if (d < dhat)
-			for (int j = 0; j < dim; j++)
-			{
-				for (int k = 0; k < dim; k++)
-				{
-					int idx =N*dim*dim+ i * dim * dim + j * dim + k;
-					device_hess_row_idx(idx) = (N-1) * dim + j;
-					device_hess_col_idx(idx) = (N-1) * dim + k;
-					device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
-				}
-			}
-		else
-			for (int j = 0; j < dim; j++)
-			{
-				for (int k = 0; k < dim; k++)
-				{
-					int idx = N*dim*dim+i * dim * dim + j * dim + k;
-					device_hess_row_idx(idx) = (N-1) * dim + j;
-					device_hess_col_idx(idx) = (N-1) * dim + k;
-					device_hess_val(idx) = 0;
-				}
-			} })
+			int index[2] = {i, N - 1};
+			for (int nI = 0; nI < 2; nI++)
+				for (int nJ = 0; nJ < 2; nJ++)
+					for (int j = 0; j < dim; j++)
+					{
+						for (int k = 0; k < dim; k++)
+						{
+							int idx = N * dim * dim + i * dim * dim * 4 + nI * dim * dim * 2 + nJ * dim * dim + j * dim + k;
+							device_hess_row_idx(idx) = index[nI] * dim + j;
+							device_hess_col_idx(idx) = index[nJ] * dim + k;
+							if (d < dhat)
+								if (nI == nJ)
+									device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
+								else
+									device_hess_val(idx) = -device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
+							else
+								device_hess_val(idx) = 0;
+						}
+					} })
 		.wait();
 	return device_hess;
 
@@ -240,6 +230,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n(j) * (device_x(i * dim + j) - device_o(j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
+			//printf("alpha: %f\n", device_alpha(i));
 		} })
 		.wait();
 
@@ -260,6 +251,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n_ceil(j) * (device_x(i * dim + j) - device_x((N-1) * dim + j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
+			//printf("alpha: %f\n", device_alpha(i));
 		} })
 		.wait();
 	return min_vector(device_alpha);

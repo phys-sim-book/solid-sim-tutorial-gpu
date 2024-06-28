@@ -17,7 +17,7 @@ struct MovDirichletSimulator<T, dim>::Impl
     T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff;
     int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
     std::vector<T> x, x_tilde, v, k, l2, DBC_limit, DBC_v, DBC_target;
-    std::vector<int> e, DBC, DBC_satisfied;
+    std::vector<int> e, DBC, DBC_satisfied, is_DBC;
     DeviceBuffer<int> device_DBC;
     DeviceBuffer<T> device_contact_area;
     sf::RenderWindow window;
@@ -67,10 +67,13 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     DBC_limit.push_back(0);
     DBC_limit.push_back(-0.6);
     DBC_v.push_back(0);
-    DBC_v.push_back(-1);
+    DBC_v.push_back(-0.5);
     DBC_stiff = 10;
     x.push_back(0);
     x.push_back(side_len * 0.6);
+    DBC_satisfied.resize(x.size() / dim);
+    is_DBC.resize(x.size() / dim, 0);
+    is_DBC[(n_seg + 1) * (n_seg + 1)] = 1;
     std::vector<T> contact_area(x.size() / dim, side_len / n_seg);
     std::vector<T> ground_n(dim);
     ground_n[0] = 0, ground_n[1] = 1;
@@ -106,7 +109,7 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, DBC_stiff);
     DeviceBuffer<T> x_device(x);
     update_x(x_device);
-    device_DBC = DeviceBuffer<int>(DBC);
+    device_DBC = DeviceBuffer<int>(is_DBC);
     device_contact_area = DeviceBuffer<T>(contact_area);
 }
 template <typename T, int dim>
@@ -194,6 +197,7 @@ void MovDirichletSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
     massspringenergy.update_x(new_x);
     gravityenergy.update_x(new_x);
     barrierenergy.update_x(new_x);
+    springenergy.update_x(new_x);
     new_x.copy_to(x);
 }
 template <typename T, int dim>
@@ -276,17 +280,13 @@ T MovDirichletSimulator<T, dim>::Impl::IP_val()
 template <typename T, int dim>
 DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::IP_grad()
 {
-    return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
-                                                                                 massspringenergy.grad(), 1.0, h * h),
-                                                                   gravityenergy.grad(), 1.0, h * h),
-                                                     barrierenergy.grad(), 1.0, h * h),
-                                       frictionenergy.grad(), 1.0, h * h),
-                         springenergy.grad(), 1.0, 1.0);
-    // return add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
-    //                                                                massspringenergy.grad(), 1.0, h * h),
-    //                                                  gravityenergy.grad(), 1.0, h * h),
-    //                                    barrierenergy.grad(), 1.0, h * h),
-    //                      frictionenergy.grad(), 1.0, h * h);
+    return add_vector<T>(
+        add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
+                                                                massspringenergy.grad(), 1.0, h * h),
+                                                  gravityenergy.grad(), 1.0, h * h),
+                                    barrierenergy.grad(), 1.0, h * h),
+                      frictionenergy.grad(), 1.0, h * h),
+        springenergy.grad(), 1.0, 1.0);
 }
 
 template <typename T, int dim>
@@ -311,7 +311,11 @@ DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::search_direction()
     DeviceBuffer<T> grad = IP_grad();
     DeviceTripletMatrix<T, 1> hess = IP_hess();
     // check whether each DBC is satisfied
-    DBC_satisfied.resize(x.size() / dim, 0);
+    for (int i = 0; i < DBC_satisfied.size(); i++)
+    {
+        DBC_satisfied[i] = 0;
+    }
+
     for (int i = 0; i < DBC.size(); i++)
     {
         T diff = 0;
@@ -319,6 +323,7 @@ DeviceBuffer<T> MovDirichletSimulator<T, dim>::Impl::search_direction()
         {
             diff += (x[DBC[i] * dim + d] - DBC_target[i * dim + d]) * (x[DBC[i] * dim + d] - DBC_target[i * dim + d]);
         }
+        diff = sqrt(diff);
         if (diff / h < tol)
         {
             DBC_satisfied[DBC[i]] = 1;
