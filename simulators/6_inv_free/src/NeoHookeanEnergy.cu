@@ -41,10 +41,12 @@ NeoHookeanEnergy<T, dim>::NeoHookeanEnergy(const std::vector<T> &x, const std::v
 {
     pimpl_->device_x.copy_from(x);
     pimpl_->device_e.copy_from(e);
+    pimpl_->device_vol.resize(e.size() / 3);
+    pimpl_->device_IB.resize(e.size() / 3);
     pimpl_->Mu = mu;
     pimpl_->Lambda = lam;
     pimpl_->device_grad.resize(x.size());
-    pimpl_->device_hess.resize_triplets(e.size() * dim * dim * dim * dim);
+    pimpl_->device_hess.resize_triplets(e.size() * 12);
     pimpl_->device_hess.reshape(x.size(), x.size());
     init_vol_IB();
 }
@@ -59,7 +61,7 @@ void NeoHookeanEnergy<T, dim>::init_vol_IB()
         {
             for (int k = 0; k < 2; ++k)
             {
-                TB(k, j) = device_x(device_e(i * 3 + j) * 2 + k) - device_x(device_e(i * 3) * 2 + k);
+                TB(k, j) = device_x(device_e(i * 3 + j+1) * 2 + k) - device_x(device_e(i * 3) * 2 + k);
             }
         }
         device_vol(i) = TB.determinant() / 2;
@@ -94,7 +96,6 @@ T NeoHookeanEnergy<T, dim>::val()
          NeoHookeanEnergyVal(E,  Mu, Lambda,X,device_IB(i),device_vol(i));
          device_val(i) = E; })
         .wait();
-
     return devicesum(device_val);
 }
 
