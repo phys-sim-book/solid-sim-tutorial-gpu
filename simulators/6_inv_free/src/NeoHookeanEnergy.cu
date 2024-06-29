@@ -96,6 +96,7 @@ T NeoHookeanEnergy<T, dim>::val()
          NeoHookeanEnergyVal(E,  Mu, Lambda,X,device_IB(i),device_vol(i));
          device_val(i) = E; })
         .wait();
+    display_vec(device_val);
     return devicesum(device_val);
 }
 

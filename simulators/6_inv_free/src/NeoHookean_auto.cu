@@ -7,7 +7,23 @@ __device__ __host__ void NeoHookeanEnergyVal(T &E, const T &Mu, const T &Lambda,
     Author: MuGdxy
     GitHub: https://github.com/MuGdxy/SymEigen
     E-Mail: lxy819469559@gmail.com
-    ******************************************************************************************************************************
+    *****************************************************************************************************************************
+    Symbol Name Mapping:
+    Mu:
+        -> {}
+        -> Matrix([[Mu]])
+    Lambda:
+        -> {}
+        -> Matrix([[Lambda]])
+    X:
+        -> {}
+        -> Matrix([[X(0)], [X(1)], [X(2)], [X(3)], [X(4)], [X(5)]])
+    IB:
+        -> {}
+        -> Matrix([[IB(0,0), IB(0,1)], [IB(1,0), IB(1,1)]])
+    vol:
+        -> {}
+        -> Matrix([[vol]])
     *****************************************************************************************************************************/
     /* Sub Exprs */
     auto x0 = IB(0, 0) * IB(1, 1);
@@ -20,8 +36,8 @@ __device__ __host__ void NeoHookeanEnergyVal(T &E, const T &Mu, const T &Lambda,
     auto x7 = X(3) * X(4);
     auto x8 = log(-X(0) * x3 + X(0) * x5 - X(2) * x2 + X(2) * x3 - X(2) * x5 + X(2) * x6 + X(4) * x2 - X(4) * x6 + x0 * x1 - x0 * x7 - x1 * x4 + x4 * x7);
     auto x9 = -X(0) + X(2);
-    auto x10 = -X(1) + X(3);
-    auto x11 = -X(0) + X(4);
+    auto x10 = -X(0) + X(4);
+    auto x11 = -X(1) + X(3);
     auto x12 = -X(1) + X(5);
     /* Simplified Expr */
     E = vol * ((1.0 / 2.0) * Lambda * (x8 * x8) - Mu * x8 + (1.0 / 2.0) * Mu * ((IB(0, 0) * x11 + IB(1, 0) * x12 * IB(0, 0) * x11 + IB(1, 0) * x12) + (IB(0, 0) * x9 + IB(1, 0) * x10 * IB(0, 0) * x9 + IB(1, 0) * x10) + (IB(0, 1) * x11 + IB(1, 1) * x12 * IB(0, 1) * x11 + IB(1, 1) * x12) + (IB(0, 1) * x9 + IB(1, 1) * x10 * IB(0, 1) * x9 + IB(1, 1) * x10) - 2));
@@ -35,8 +51,6 @@ __device__ __host__ void NeoHookeanEnergyGradient(Eigen::Vector<T, 6> &G, const 
     GitHub: https://github.com/MuGdxy/SymEigen
     E-Mail: lxy819469559@gmail.com
     ******************************************************************************************************************************
-    LaTeX expression:
-
     Symbol Name Mapping:
     Mu:
         -> {}
@@ -55,54 +69,52 @@ __device__ __host__ void NeoHookeanEnergyGradient(Eigen::Vector<T, 6> &G, const 
         -> Matrix([[vol]])
     *****************************************************************************************************************************/
     /* Sub Exprs */
-    auto x0 = -X(0) + X(2);
-    auto x1 = -X(1) + X(3);
-    auto x2 = IB(0, 0) * x0 + IB(1, 0) * x1;
-    auto x3 = 2 * IB(0, 0);
-    auto x4 = IB(0, 1) * x0 + IB(1, 1) * x1;
-    auto x5 = 2 * IB(0, 1);
-    auto x6 = x2 * x3 + x4 * x5;
-    auto x7 = -X(0) + X(4);
-    auto x8 = -X(1) + X(5);
-    auto x9 = IB(0, 0) * x7 + IB(1, 0) * x8;
-    auto x10 = IB(0, 1) * x7 + IB(1, 1) * x8;
-    auto x11 = x10 * x5 + x3 * x9;
-    auto x12 = (1.0 / 2.0) * Mu;
-    auto x13 = IB(0, 0) * IB(1, 1);
+    auto x0 = 2 * IB(0, 0);
+    auto x1 = 2 * IB(1, 0);
+    auto x2 = -x0 - x1;
+    auto x3 = -X(0) + X(2);
+    auto x4 = -X(0) + X(4);
+    auto x5 = IB(0, 0) * x3 + IB(1, 0) * x4;
+    auto x6 = 2 * IB(0, 1);
+    auto x7 = 2 * IB(1, 1);
+    auto x8 = -x6 - x7;
+    auto x9 = IB(0, 1) * x3 + IB(1, 1) * x4;
+    auto x10 = (1.0 / 2.0) * Mu;
+    auto x11 = IB(0, 0) * IB(1, 1);
+    auto x12 = X(3) * x11;
+    auto x13 = IB(0, 1) * IB(1, 0);
     auto x14 = X(3) * x13;
-    auto x15 = IB(0, 1) * IB(1, 0);
-    auto x16 = X(3) * x15;
-    auto x17 = X(5) * x15;
-    auto x18 = X(5) * x13;
-    auto x19 = x17 - x18;
-    auto x20 = x14 - x16 + x19;
-    auto x21 = X(4) * x13;
-    auto x22 = X(2) * x15;
-    auto x23 = X(2) * x13;
-    auto x24 = X(4) * x15;
-    auto x25 = X(0) * x14 - X(0) * x16 + X(0) * x17 - X(0) * x18 + X(1) * x21 + X(1) * x22 - X(1) * x23 - X(1) * x24 - X(2) * x17 + X(2) * x18 - X(4) * x14 + X(4) * x16;
-    auto x26 = 1.0 / (x25);
-    auto x27 = Mu * x26;
-    auto x28 = Lambda * x26 * log(x25);
-    auto x29 = 2 * IB(1, 0);
-    auto x30 = 2 * IB(1, 1);
-    auto x31 = x2 * x29 + x30 * x4;
-    auto x32 = x10 * x30 + x29 * x9;
-    auto x33 = -x21 + x24;
-    auto x34 = x22 - x23 - x33;
-    auto x35 = X(1) * x13 - X(1) * x15;
-    auto x36 = -x19 - x35;
-    auto x37 = X(0) * x13 - X(0) * x15;
-    auto x38 = x33 + x37;
-    auto x39 = -x14 + x16 + x35;
-    auto x40 = -x22 + x23 - x37;
+    auto x15 = X(5) * x13;
+    auto x16 = X(5) * x11;
+    auto x17 = x15 - x16;
+    auto x18 = x12 - x14 + x17;
+    auto x19 = X(4) * x11;
+    auto x20 = X(2) * x13;
+    auto x21 = X(2) * x11;
+    auto x22 = X(4) * x13;
+    auto x23 = X(0) * x12 - X(0) * x14 + X(0) * x15 - X(0) * x16 + X(1) * x19 + X(1) * x20 - X(1) * x21 - X(1) * x22 - X(2) * x15 + X(2) * x16 - X(4) * x12 + X(4) * x14;
+    auto x24 = 1.0 / (x23);
+    auto x25 = Mu * x24;
+    auto x26 = Lambda * x24 * log(x23);
+    auto x27 = -X(1) + X(3);
+    auto x28 = -X(1) + X(5);
+    auto x29 = IB(0, 0) * x27 + IB(1, 0) * x28;
+    auto x30 = IB(0, 1) * x27 + IB(1, 1) * x28;
+    auto x31 = -x19 + x22;
+    auto x32 = x20 - x21 - x31;
+    auto x33 = X(1) * x11 - X(1) * x13;
+    auto x34 = -x17 - x33;
+    auto x35 = X(0) * x11 - X(0) * x13;
+    auto x36 = x31 + x35;
+    auto x37 = -x12 + x14 + x33;
+    auto x38 = -x20 + x21 - x35;
     /* Simplified Expr */
-    G(0) = vol * (x12 * (-x11 - x6) - x20 * x27 + x20 * x28);
-    G(1) = vol * (x12 * (-x31 - x32) - x27 * x34 + x28 * x34);
-    G(2) = vol * (x12 * x6 - x27 * x36 + x28 * x36);
-    G(3) = vol * (x12 * x31 - x27 * x38 + x28 * x38);
-    G(4) = vol * (x11 * x12 - x27 * x39 + x28 * x39);
-    G(5) = vol * (x12 * x32 - x27 * x40 + x28 * x40);
+    G(0) = vol * (x10 * (x2 * x5 + x8 * x9) - x18 * x25 + x18 * x26);
+    G(1) = vol * (x10 * (x2 * x29 + x30 * x8) - x25 * x32 + x26 * x32);
+    G(2) = vol * (x10 * (x0 * x5 + x6 * x9) - x25 * x34 + x26 * x34);
+    G(3) = vol * (x10 * (x0 * x29 + x30 * x6) - x25 * x36 + x26 * x36);
+    G(4) = vol * (x10 * (x1 * x5 + x7 * x9) - x25 * x37 + x26 * x37);
+    G(5) = vol * (x10 * (x1 * x29 + x30 * x7) - x25 * x38 + x26 * x38);
 }
 template <typename T>
 __device__ __host__ void NeoHookeanEnergyHessian(Eigen::Matrix<T, 6, 6> &H, const T &Mu, const T &Lambda, const Eigen::Vector<T, 6> &X, const Eigen::Matrix<T, 2, 2> &IB, const T &vol)
@@ -113,6 +125,7 @@ __device__ __host__ void NeoHookeanEnergyHessian(Eigen::Matrix<T, 6, 6> &H, cons
     GitHub: https://github.com/MuGdxy/SymEigen
     E-Mail: lxy819469559@gmail.com
     ******************************************************************************************************************************
+    LaTeX expression:
     Symbol Name Mapping:
     Mu:
         -> {}
@@ -131,133 +144,132 @@ __device__ __host__ void NeoHookeanEnergyHessian(Eigen::Matrix<T, 6, 6> &H, cons
         -> Matrix([[vol]])
     *****************************************************************************************************************************/
     /* Sub Exprs */
-    auto x0 = (IB(0, 0) * IB(0, 0));
-    auto x1 = (IB(0, 1) * IB(0, 1));
-    auto x2 = (1.0 / 2.0) * Mu;
-    auto x3 = IB(0, 0) * IB(1, 1);
-    auto x4 = X(3) * x3;
-    auto x5 = IB(0, 1) * IB(1, 0);
-    auto x6 = X(3) * x5;
-    auto x7 = X(5) * x5;
-    auto x8 = X(5) * x3;
-    auto x9 = x7 - x8;
-    auto x10 = x4 - x6 + x9;
-    auto x11 = X(4) * x3;
-    auto x12 = X(2) * x5;
-    auto x13 = X(2) * x3;
-    auto x14 = X(4) * x5;
-    auto x15 = X(0) * x4 - X(0) * x6 + X(0) * x7 - X(0) * x8 + X(1) * x11 + X(1) * x12 - X(1) * x13 - X(1) * x14 - X(2) * x7 + X(2) * x8 - X(4) * x4 + X(4) * x6;
-    auto x16 = pow(x15, -2);
-    auto x17 = Lambda * x16;
-    auto x18 = Mu * x16;
-    auto x19 = -x10;
-    auto x20 = x10 * x19;
-    auto x21 = log(x15);
-    auto x22 = x17 * x21;
-    auto x23 = -x11 + x14;
-    auto x24 = -x12 + x13 + x23;
-    auto x25 = x10 * x18;
-    auto x26 = x10 * x17;
-    auto x27 = x21 * x26;
-    auto x28 = IB(0, 0) * IB(1, 0);
-    auto x29 = IB(0, 1) * IB(1, 1);
-    auto x30 = -x24;
-    auto x31 = x2 * (4 * x28 + 4 * x29) + x26 * x30;
-    auto x32 = X(1) * x3 - X(1) * x5;
-    auto x33 = x32 + x9;
-    auto x34 = 2 * x0 + 2 * x1;
-    auto x35 = -x2 * x34;
-    auto x36 = -x33;
-    auto x37 = x26 * x36 + x35;
-    auto x38 = X(0) * x3 - X(0) * x5;
-    auto x39 = x23 + x38;
+    auto x0 = 2 * IB(0, 0);
+    auto x1 = 2 * IB(1, 0);
+    auto x2 = -x0 - x1;
+    auto x3 = -IB(0, 0) - IB(1, 0);
+    auto x4 = 2 * IB(0, 1);
+    auto x5 = 2 * IB(1, 1);
+    auto x6 = -x4 - x5;
+    auto x7 = -IB(0, 1) - IB(1, 1);
+    auto x8 = (1.0 / 2.0) * Mu;
+    auto x9 = x8 * (x2 * x3 + x6 * x7);
+    auto x10 = IB(0, 0) * IB(1, 1);
+    auto x11 = X(3) * x10;
+    auto x12 = IB(0, 1) * IB(1, 0);
+    auto x13 = X(3) * x12;
+    auto x14 = X(5) * x12;
+    auto x15 = X(5) * x10;
+    auto x16 = x14 - x15;
+    auto x17 = x11 - x13 + x16;
+    auto x18 = X(4) * x10;
+    auto x19 = X(2) * x12;
+    auto x20 = X(2) * x10;
+    auto x21 = X(4) * x12;
+    auto x22 = X(0) * x11 - X(0) * x13 + X(0) * x14 - X(0) * x15 + X(1) * x18 + X(1) * x19 - X(1) * x20 - X(1) * x21 - X(2) * x14 + X(2) * x15 - X(4) * x11 + X(4) * x13;
+    auto x23 = pow(x22, -2);
+    auto x24 = Lambda * x23;
+    auto x25 = Mu * x23;
+    auto x26 = -x17;
+    auto x27 = x17 * x26;
+    auto x28 = log(x22);
+    auto x29 = x24 * x28;
+    auto x30 = -x18 + x21;
+    auto x31 = -x19 + x20 + x30;
+    auto x32 = -x31;
+    auto x33 = x17 * x24;
+    auto x34 = x32 * x33;
+    auto x35 = x17 * x25;
+    auto x36 = x28 * x33;
+    auto x37 = x8 * (IB(0, 0) * x2 + IB(0, 1) * x6);
+    auto x38 = X(1) * x10 - X(1) * x12;
+    auto x39 = x16 + x38;
     auto x40 = -x39;
-    auto x41 = 2 * x28 + 2 * x29;
-    auto x42 = -x2 * x41;
-    auto x43 = x3 - x5;
-    auto x44 = 1.0 / (x15);
-    auto x45 = Mu * x44;
-    auto x46 = Lambda * x21 * x44;
-    auto x47 = -x43 * x45 + x43 * x46;
-    auto x48 = x42 + x47;
-    auto x49 = x26 * x39 + x48;
-    auto x50 = x32 - x4 + x6;
-    auto x51 = -x50;
-    auto x52 = x26 * x50 + x35;
-    auto x53 = x12 - x13 + x38;
-    auto x54 = -x53;
-    auto x55 = -x43;
-    auto x56 = -x45 * x55 + x46 * x55;
-    auto x57 = x42 + x56;
-    auto x58 = x26 * x54 + x57;
-    auto x59 = x18 * x30;
-    auto x60 = x17 * x30;
-    auto x61 = x21 * x60;
-    auto x62 = (IB(1, 0) * IB(1, 0));
-    auto x63 = (IB(1, 1) * IB(1, 1));
-    auto x64 = x36 * x60 + x57;
-    auto x65 = 2 * x62 + 2 * x63;
-    auto x66 = -x2 * x65;
-    auto x67 = x39 * x60 + x66;
-    auto x68 = x48 + x50 * x60;
-    auto x69 = x54 * x60 + x66;
-    auto x70 = x18 * x36;
-    auto x71 = x17 * x36;
-    auto x72 = x21 * x71;
-    auto x73 = x2 * x34;
-    auto x74 = x2 * x41;
-    auto x75 = x39 * x71 + x74;
-    auto x76 = x50 * x71;
-    auto x77 = x47 + x54 * x71;
-    auto x78 = x18 * x39;
-    auto x79 = x17 * x39;
-    auto x80 = x21 * x79;
-    auto x81 = x2 * x65;
-    auto x82 = x50 * x79 + x56;
-    auto x83 = x54 * x79;
-    auto x84 = x18 * x50;
-    auto x85 = x17 * x50;
-    auto x86 = x21 * x85;
-    auto x87 = x54 * x85 + x74;
-    auto x88 = x18 * x54;
-    auto x89 = x22 * x54;
+    auto x41 = x33 * x40;
+    auto x42 = X(0) * x10 - X(0) * x12;
+    auto x43 = x30 + x42;
+    auto x44 = -x43;
+    auto x45 = x10 - x12;
+    auto x46 = 1.0 / (x22);
+    auto x47 = Mu * x46;
+    auto x48 = Lambda * x28 * x46;
+    auto x49 = -x45 * x47 + x45 * x48;
+    auto x50 = x33 * x43 + x49;
+    auto x51 = x8 * (IB(1, 0) * x2 + IB(1, 1) * x6);
+    auto x52 = -x11 + x13 + x38;
+    auto x53 = x33 * x52;
+    auto x54 = -x52;
+    auto x55 = x19 - x20 + x42;
+    auto x56 = -x55;
+    auto x57 = -x45;
+    auto x58 = -x47 * x57 + x48 * x57;
+    auto x59 = x33 * x56 + x58;
+    auto x60 = x25 * x32;
+    auto x61 = x24 * x32;
+    auto x62 = x28 * x61;
+    auto x63 = x40 * x61 + x58;
+    auto x64 = x43 * x61;
+    auto x65 = x49 + x52 * x61;
+    auto x66 = x56 * x61;
+    auto x67 = x8 * (x0 * x3 + x4 * x7);
+    auto x68 = x25 * x40;
+    auto x69 = x24 * x40;
+    auto x70 = x28 * x69;
+    auto x71 = x8 * (2 * (IB(0, 0) * IB(0, 0)) + 2 * (IB(0, 1) * IB(0, 1)));
+    auto x72 = x43 * x69;
+    auto x73 = x8 * (IB(1, 0) * x0 + IB(1, 1) * x4);
+    auto x74 = x52 * x69 + x73;
+    auto x75 = x49 + x56 * x69;
+    auto x76 = x25 * x43;
+    auto x77 = x24 * x43;
+    auto x78 = x28 * x77;
+    auto x79 = x52 * x77 + x58;
+    auto x80 = x56 * x77 + x73;
+    auto x81 = x8 * (x1 * x3 + x5 * x7);
+    auto x82 = x25 * x52;
+    auto x83 = x24 * x52;
+    auto x84 = x28 * x83;
+    auto x85 = x8 * (2 * (IB(1, 0) * IB(1, 0)) + 2 * (IB(1, 1) * IB(1, 1)));
+    auto x86 = x56 * x83;
+    auto x87 = x25 * x56;
+    auto x88 = x29 * x56;
     /* Simplified Expr */
-    H(0, 0) = vol * ((x10 * x10) * x17 - x18 * x20 + x2 * (4 * x0 + 4 * x1) + x20 * x22);
-    H(0, 1) = vol * (-x24 * x25 + x24 * x27 + x31);
-    H(0, 2) = vol * (-x25 * x33 + x27 * x33 + x37);
-    H(0, 3) = vol * (-x25 * x40 + x27 * x40 + x49);
-    H(0, 4) = vol * (-x25 * x51 + x27 * x51 + x52);
-    H(0, 5) = vol * (-x25 * x53 + x27 * x53 + x58);
-    H(1, 0) = vol * (-x19 * x59 + x19 * x61 + x31);
-    H(1, 1) = vol * (x17 * (x30 * x30) + x2 * (4 * x62 + 4 * x63) - x24 * x59 + x24 * x61);
-    H(1, 2) = vol * (-x33 * x59 + x33 * x61 + x64);
-    H(1, 3) = vol * (-x40 * x59 + x40 * x61 + x67);
-    H(1, 4) = vol * (-x51 * x59 + x51 * x61 + x68);
-    H(1, 5) = vol * (-x53 * x59 + x53 * x61 + x69);
-    H(2, 0) = vol * (-x19 * x70 + x19 * x72 + x37);
-    H(2, 1) = vol * (-x24 * x70 + x24 * x72 + x64);
-    H(2, 2) = vol * (x17 * (x36 * x36) - x33 * x70 + x33 * x72 + x73);
-    H(2, 3) = vol * (-x40 * x70 + x40 * x72 + x75);
-    H(2, 4) = vol * (-x51 * x70 + x51 * x72 + x76);
-    H(2, 5) = vol * (-x53 * x70 + x53 * x72 + x77);
-    H(3, 0) = vol * (-x19 * x78 + x19 * x80 + x49);
-    H(3, 1) = vol * (-x24 * x78 + x24 * x80 + x67);
-    H(3, 2) = vol * (-x33 * x78 + x33 * x80 + x75);
-    H(3, 3) = vol * (x17 * (x39 * x39) - x40 * x78 + x40 * x80 + x81);
-    H(3, 4) = vol * (-x51 * x78 + x51 * x80 + x82);
-    H(3, 5) = vol * (-x53 * x78 + x53 * x80 + x83);
-    H(4, 0) = vol * (-x19 * x84 + x19 * x86 + x52);
-    H(4, 1) = vol * (-x24 * x84 + x24 * x86 + x68);
-    H(4, 2) = vol * (-x33 * x84 + x33 * x86 + x76);
-    H(4, 3) = vol * (-x40 * x84 + x40 * x86 + x82);
-    H(4, 4) = vol * (x17 * (x50 * x50) - x51 * x84 + x51 * x86 + x73);
-    H(4, 5) = vol * (-x53 * x84 + x53 * x86 + x87);
-    H(5, 0) = vol * (-x19 * x88 + x19 * x89 + x58);
-    H(5, 1) = vol * (-x24 * x88 + x24 * x89 + x69);
-    H(5, 2) = vol * (-x33 * x88 + x33 * x89 + x77);
-    H(5, 3) = vol * (-x40 * x88 + x40 * x89 + x83);
-    H(5, 4) = vol * (-x51 * x88 + x51 * x89 + x87);
-    H(5, 5) = vol * (x17 * (x54 * x54) - x53 * x88 + x53 * x89 + x81);
+    H(0, 0) = vol * ((x17 * x17) * x24 - x25 * x27 + x27 * x29 + x9);
+    H(0, 1) = vol * (-x31 * x35 + x31 * x36 + x34);
+    H(0, 2) = vol * (-x35 * x39 + x36 * x39 + x37 + x41);
+    H(0, 3) = vol * (-x35 * x44 + x36 * x44 + x50);
+    H(0, 4) = vol * (-x35 * x54 + x36 * x54 + x51 + x53);
+    H(0, 5) = vol * (-x35 * x55 + x36 * x55 + x59);
+    H(1, 0) = vol * (-x26 * x60 + x26 * x62 + x34);
+    H(1, 1) = vol * (x24 * (x32 * x32) - x31 * x60 + x31 * x62 + x9);
+    H(1, 2) = vol * (-x39 * x60 + x39 * x62 + x63);
+    H(1, 3) = vol * (x37 - x44 * x60 + x44 * x62 + x64);
+    H(1, 4) = vol * (-x54 * x60 + x54 * x62 + x65);
+    H(1, 5) = vol * (x51 - x55 * x60 + x55 * x62 + x66);
+    H(2, 0) = vol * (-x26 * x68 + x26 * x70 + x41 + x67);
+    H(2, 1) = vol * (-x31 * x68 + x31 * x70 + x63);
+    H(2, 2) = vol * (x24 * (x40 * x40) - x39 * x68 + x39 * x70 + x71);
+    H(2, 3) = vol * (-x44 * x68 + x44 * x70 + x72);
+    H(2, 4) = vol * (-x54 * x68 + x54 * x70 + x74);
+    H(2, 5) = vol * (-x55 * x68 + x55 * x70 + x75);
+    H(3, 0) = vol * (-x26 * x76 + x26 * x78 + x50);
+    H(3, 1) = vol * (-x31 * x76 + x31 * x78 + x64 + x67);
+    H(3, 2) = vol * (-x39 * x76 + x39 * x78 + x72);
+    H(3, 3) = vol * (x24 * (x43 * x43) - x44 * x76 + x44 * x78 + x71);
+    H(3, 4) = vol * (-x54 * x76 + x54 * x78 + x79);
+    H(3, 5) = vol * (-x55 * x76 + x55 * x78 + x80);
+    H(4, 0) = vol * (-x26 * x82 + x26 * x84 + x53 + x81);
+    H(4, 1) = vol * (-x31 * x82 + x31 * x84 + x65);
+    H(4, 2) = vol * (-x39 * x82 + x39 * x84 + x74);
+    H(4, 3) = vol * (-x44 * x82 + x44 * x84 + x79);
+    H(4, 4) = vol * (x24 * (x52 * x52) - x54 * x82 + x54 * x84 + x85);
+    H(4, 5) = vol * (-x55 * x82 + x55 * x84 + x86);
+    H(5, 0) = vol * (-x26 * x87 + x26 * x88 + x59);
+    H(5, 1) = vol * (-x31 * x87 + x31 * x88 + x66 + x81);
+    H(5, 2) = vol * (-x39 * x87 + x39 * x88 + x75);
+    H(5, 3) = vol * (-x44 * x87 + x44 * x88 + x80);
+    H(5, 4) = vol * (-x54 * x87 + x54 * x88 + x86);
+    H(5, 5) = vol * (x24 * (x56 * x56) - x55 * x87 + x55 * x88 + x85);
 }
 
 // Template instantiation
