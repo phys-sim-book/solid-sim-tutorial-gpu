@@ -8,7 +8,7 @@ template <typename T, int dim>
 class BarrierEnergy
 {
 public:
-    BarrierEnergy(const std::vector<T> &x, const std::vector<T> n, const std::vector<T> o, const std::vector<T> &contact_area);
+    BarrierEnergy(const std::vector<T> &x, const std::vector<T> &n, const std::vector<T> &o, const std::vector<T> &contact_area);
     BarrierEnergy();
     ~BarrierEnergy();
     BarrierEnergy(BarrierEnergy &&rhs);

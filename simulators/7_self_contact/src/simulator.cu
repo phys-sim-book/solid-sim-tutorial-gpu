@@ -62,18 +62,30 @@ template <typename T, int dim>
 InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : tol(tol_), h(h_), mu(mu_), Mu(Mu_), Lambda(Lam_), window(sf::VideoMode(resolution, resolution), "InvFreeSimulator")
 {
     generate(side_len, n_seg, x, e);
-    DBC.push_back((n_seg + 1) * (n_seg + 1));
+    for (int i = 0; i < (n_seg + 1) * (n_seg + 1); i++)
+    {
+        x.push_back(x[i * dim] - side_len * 0.1);
+        x.push_back(x[i * dim + 1] - side_len * 1.1);
+    }
+    int esize = e.size();
+    for (int i = 0; i < esize; i++)
+    {
+        e.push_back(e[i] + (n_seg + 1) * (n_seg + 1));
+    }
+    std::vector<int> bp, be;
+    find_boundary(e, bp, be);
+    DBC.push_back(x.size() / dim);
     DBC_target.resize(DBC.size() * dim);
     DBC_limit.push_back(0);
-    DBC_limit.push_back(-0.6);
+    DBC_limit.push_back(-1.5);
     DBC_v.push_back(0);
-    DBC_v.push_back(-0.3);
+    DBC_v.push_back(-0.5);
     DBC_stiff = 10;
     x.push_back(0);
-    x.push_back(side_len * 0.6);
+    x.push_back(side_len * 1.2);
     DBC_satisfied.resize(x.size() / dim);
     is_DBC.resize(x.size() / dim, 0);
-    is_DBC[(n_seg + 1) * (n_seg + 1)] = 1;
+    is_DBC[x.size() / dim - 1] = 1;
     std::vector<T> contact_area(x.size() / dim, side_len / n_seg);
     std::vector<T> ground_n(dim);
     ground_n[0] = 0, ground_n[1] = 1;
@@ -82,7 +94,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     for (int i = 0; i < dim; i++)
         ground_n[i] /= n_norm;
     std::vector<T> ground_o(dim);
-    ground_o[0] = 0, ground_o[1] = -1;
+    ground_o[0] = 0, ground_o[1] = -1.7;
     v.resize(x.size(), 0);
     k.resize(e.size() / 2, K);
     l2.resize(e.size() / 2);
@@ -104,7 +116,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     inertialenergy = InertialEnergy<T, dim>(N, m);
     neohookeanenergy = NeoHookeanEnergy<T, dim>(x, e, Mu, Lambda);
     gravityenergy = GravityEnergy<T, dim>(N, m);
-    barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, contact_area);
+    barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, bp, be, contact_area);
     frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n);
     springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, DBC_stiff);
     DeviceBuffer<T> x_device(x);
