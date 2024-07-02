@@ -370,7 +370,8 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 			   {
 				   int xI = device_bp(i / Nbe);
 				   int eI0 = device_be(2*(i % Nbe)), eI1 = device_be(2*(i % Nbe) + 1);
-				   Eigen::Matrix<T, 2, 1> p, e0, e1,dp,de0,de1; 
+				   if (xI != eI0 && xI != eI1){
+					   Eigen::Matrix<T, 2, 1> p, e0, e1, dp, de0, de1; 
 				   p<<device_x(xI*dim),device_x(xI*dim+1);
 				   e0<<device_x(eI0*dim),device_x(eI0*dim+1);
 				   e1<<device_x(eI1*dim),device_x(eI1*dim+1);
@@ -378,9 +379,10 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				   de0<<P(eI0*dim),P(eI0*dim+1);
 				   de1<<P(eI1*dim),P(eI1*dim+1); 
 				   if (bbox_overlap(p,e0,e1,dp,de0,de1,current_alpha)){
+					//printf("bbox_overlap at %d %d\n",xI,i);
 					 T toc=narrow_phase_CCD(p,e0,e1,dp,de0,de1,current_alpha);
 					 device_alpha1(i)=min(device_alpha1(i),toc);
-				   } })
+				   }} })
 		.wait();
 	return min(min_vector(device_alpha1), current_alpha);
 }

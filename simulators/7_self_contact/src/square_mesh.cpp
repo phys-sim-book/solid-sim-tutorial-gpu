@@ -1,4 +1,5 @@
 #include "square_mesh.h"
+#include <stdio.h>
 template <typename T>
 void generate(T side_length, int n_seg, std::vector<T> &x, std::vector<int> &e)
 {
@@ -59,7 +60,7 @@ void find_boundary(const std::vector<int> &e, std::vector<int> &bp, std::vector<
 {
     // index all half-edges for fast query
     std::set<std::pair<int, int>> edge_set;
-    for (size_t i = 0; i < e.size()/3; i += 3)
+    for (size_t i = 0; i < e.size() / 3; i++)
     {
         for (int j = 0; j < 3; ++j)
         {
