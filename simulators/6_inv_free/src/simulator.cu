@@ -67,7 +67,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     DBC_limit.push_back(0);
     DBC_limit.push_back(-0.6);
     DBC_v.push_back(0);
-    DBC_v.push_back(-0.5);
+    DBC_v.push_back(-0.3);
     DBC_stiff = 10;
     x.push_back(0);
     x.push_back(side_len * 0.6);
@@ -145,7 +145,7 @@ void InvFreeSimulator<T, dim>::Impl::step_forward()
     update_x_tilde(add_vector<T>(x, v, 1, h));
     frictionenergy.update_mu_lambda(barrierenergy.compute_mu_lambda(mu));
     update_DBC_target();
-    update_DBC_stiff(10);
+    // update_DBC_stiff(10);
     DeviceBuffer<T> x_n = x; // Copy current positions to x_n
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
     int iter = 0;
