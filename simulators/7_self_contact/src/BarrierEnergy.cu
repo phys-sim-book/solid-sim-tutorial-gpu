@@ -35,7 +35,7 @@ BarrierEnergy<T, dim>::BarrierEnergy(const BarrierEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<T> &n, const std::vector<T> &o, const std::vector<int> &be, const std::vector<int> &bp, const std::vector<T> &contact_area) : pimpl_{std::make_unique<Impl>()}
+BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<T> &n, const std::vector<T> &o, const std::vector<int> &bp, const std::vector<int> &be, const std::vector<T> &contact_area) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = x.size() / dim;
 	pimpl_->device_x.copy_from(x);
@@ -377,11 +377,13 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				   e1<<device_x(eI1*dim),device_x(eI1*dim+1);
 				   dp<<P(xI*dim),P(xI*dim+1);
 				   de0<<P(eI0*dim),P(eI0*dim+1);
-				   de1<<P(eI1*dim),P(eI1*dim+1); 
-				   if (bbox_overlap(p,e0,e1,dp,de0,de1,current_alpha)){
-					 T toc=narrow_phase_CCD(p,e0,e1,dp,de0,de1,current_alpha);
-					 device_alpha1(i)=min(device_alpha1(i),toc);
-				   }} })
+				   de1<<P(eI1*dim),P(eI1*dim+1);
+				   if (bbox_overlap(p, e0, e1, dp, de0, de1, current_alpha))
+				   {
+					   T toc = narrow_phase_CCD(p, e0, e1, dp, de0, de1, current_alpha);
+					   device_alpha1(i) = min(device_alpha1(i), toc);
+				   }
+				   } })
 		.wait();
 	return min(min_vector(device_alpha1), current_alpha);
 }
