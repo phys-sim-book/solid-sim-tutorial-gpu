@@ -15,7 +15,6 @@ __device__ __host__ bool bbox_overlap(const Eigen::Matrix<T, 2, 1> &p, const Eig
     }
     else
     {
-        // printf("min_p: %f %f\n max_p: %f %f\n min_e: %f %f\n max_e: %f %f\n", min_p[0], min_p[1], max_p[0], max_p[1], min_e[0], min_e[1], max_e[0], max_e[1]);
         return true;
     }
 }

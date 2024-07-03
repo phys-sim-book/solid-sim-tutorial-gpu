@@ -64,7 +64,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     generate(side_len, n_seg, x, e);
     for (int i = 0; i < (n_seg + 1) * (n_seg + 1); i++)
     {
-        x.push_back(x[i * dim] - side_len * 0.1);
+        x.push_back(x[i * dim] - side_len * 0.05);
         x.push_back(x[i * dim + 1] - side_len * 1.1);
     }
     int esize = e.size();
