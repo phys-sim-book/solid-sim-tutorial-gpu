@@ -379,7 +379,6 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				   de0<<P(eI0*dim),P(eI0*dim+1);
 				   de1<<P(eI1*dim),P(eI1*dim+1); 
 				   if (bbox_overlap(p,e0,e1,dp,de0,de1,current_alpha)){
-					//printf("bbox_overlap at %d %d\n",xI,i);
 					 T toc=narrow_phase_CCD(p,e0,e1,dp,de0,de1,current_alpha);
 					 device_alpha1(i)=min(device_alpha1(i),toc);
 				   }} })
