@@ -160,7 +160,7 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 								   for (int j = 0; j < dim; j++)
 								   {
 									   T grad =device_contact_area(i) * dhat * (kappa / 2 * (log(s) / dhat + (s - 1) / d)) * device_n_ceil(j);
-									   device_grad(i * dim + j) += grad;
+									   atomicAdd(&device_grad(i * dim + j), grad);
 									   atomicAdd(&device_grad((N-1) * dim + j), -grad);
 								   }
 							   } })
@@ -381,11 +381,14 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				   if (bbox_overlap(p, e0, e1, dp, de0, de1, current_alpha))
 				   {
 					   T toc = narrow_phase_CCD(p, e0, e1, dp, de0, de1, current_alpha);
+					   printf("toc: %f\n", toc);
 					   device_alpha1(i) = min(device_alpha1(i), toc);
 				   }
 				   } })
 		.wait();
-	return min(min_vector(device_alpha1), current_alpha);
+	T a = min(min_vector(device_alpha1), current_alpha);
+	printf("alpha: %f\n", a);
+	return a;
 }
 template class BarrierEnergy<float, 2>;
 template class BarrierEnergy<float, 3>;

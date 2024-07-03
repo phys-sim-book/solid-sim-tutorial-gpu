@@ -34,7 +34,10 @@ __device__ __host__ T narrow_phase_CCD(Eigen::Matrix<T, 2, 1> p, Eigen::Matrix<T
     {
         return toc_upperbound;
     }
-
+    printf("maxDispMag: %f\n", maxDispMag);
+    printf("dp: %f, %f\n", dp[0], dp[1]);
+    printf("de0: %f, %f\n", de0[0], de0[1]);
+    printf("de1: %f, %f\n", de1[0], de1[1]);
     T eta = 0.1; // calculate the toc that first brings the distance to 0.1x the current distance
     T dist2_cur = PointEdgeDistanceVal(p, e0, e1);
     T dist_cur = std::sqrt(dist2_cur);
@@ -51,6 +54,7 @@ __device__ __host__ T narrow_phase_CCD(Eigen::Matrix<T, 2, 1> p, Eigen::Matrix<T
         e1 += tocLowerBound * de1;
         dist2_cur = PointEdgeDistanceVal(p, e0, e1);
         dist_cur = std::sqrt(dist2_cur);
+        printf("dist_cur: %f\n", dist_cur);
         if (toc != 0 && dist_cur < gap)
         {
             break;
