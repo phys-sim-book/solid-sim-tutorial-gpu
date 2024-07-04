@@ -64,7 +64,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     generate(side_len, n_seg, x, e);
     for (int i = 0; i < (n_seg + 1) * (n_seg + 1); i++)
     {
-        x.push_back(x[i * dim] - side_len * 0.05);
+        x.push_back(x[i * dim] + side_len * 0.1);
         x.push_back(x[i * dim + 1] - side_len * 1.1);
     }
     int esize = e.size();
@@ -77,12 +77,12 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     DBC.push_back(x.size() / dim);
     DBC_target.resize(DBC.size() * dim);
     DBC_limit.push_back(0);
-    DBC_limit.push_back(-1.5);
+    DBC_limit.push_back(-0.7);
     DBC_v.push_back(0);
     DBC_v.push_back(-0.5);
-    DBC_stiff = 10;
+    DBC_stiff = 1000;
     x.push_back(0);
-    x.push_back(side_len * 1.2);
+    x.push_back(side_len * 0.6);
     DBC_satisfied.resize(x.size() / dim);
     is_DBC.resize(x.size() / dim, 0);
     is_DBC[x.size() / dim - 1] = 1;
@@ -94,7 +94,7 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     for (int i = 0; i < dim; i++)
         ground_n[i] /= n_norm;
     std::vector<T> ground_o(dim);
-    ground_o[0] = 0, ground_o[1] = -1.7;
+    ground_o[0] = 0, ground_o[1] = -1.0;
     v.resize(x.size(), 0);
     k.resize(e.size() / 2, K);
     l2.resize(e.size() / 2);
@@ -167,6 +167,7 @@ void InvFreeSimulator<T, dim>::Impl::step_forward()
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol || DBC_satisfied.back() != 1) // use last one for simplisity, should check all
     {
+        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
         if (residual <= tol && DBC_satisfied.back() != 1)
         {
             update_DBC_stiff(DBC_stiff * 2);
@@ -185,7 +186,7 @@ void InvFreeSimulator<T, dim>::Impl::step_forward()
         }
         std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
-        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
+        
         p = search_direction();
         residual = max_vector(p) / h;
         iter += 1;
@@ -329,6 +330,8 @@ DeviceBuffer<T> InvFreeSimulator<T, dim>::Impl::search_direction()
     dir.resize(x.size());
     DeviceBuffer<T> grad = IP_grad();
     DeviceTripletMatrix<T, 1> hess = IP_hess();
+    std::vector<T> hess_val(hess.values().size());
+    hess.values().copy_to(hess_val.data());
     // check whether each DBC is satisfied
     for (int i = 0; i < DBC_satisfied.size(); i++)
     {

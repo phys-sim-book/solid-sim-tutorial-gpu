@@ -14,6 +14,8 @@ struct BarrierEnergy<T, dim>::Impl
 	DeviceBuffer<T> device_x;
 	DeviceBuffer<T> device_contact_area, device_n, device_n_ceil, device_o;
 	DeviceBuffer<int> device_bp, device_be;
+	std::vector<int> bp;
+	std::vector<int> be;
 	int N;
 	DeviceBuffer<T> device_grad;
 	DeviceTripletMatrix<T, 1> device_hess;
@@ -48,6 +50,8 @@ BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<
 	pimpl_->device_o.copy_from(o);
 	pimpl_->device_bp.copy_from(bp);
 	pimpl_->device_be.copy_from(be);
+	pimpl_->bp = bp;
+	pimpl_->be = be;
 	pimpl_->device_hess.resize_triplets(pimpl_->N * dim * dim + (pimpl_->N - 1) * dim * dim * 4 + bp.size() * be.size() / 2 * 36);
 	pimpl_->device_hess.reshape(x.size(), x.size());
 	pimpl_->device_grad.resize(pimpl_->N * dim);
@@ -107,13 +111,14 @@ T BarrierEnergy<T, dim>::val()
 								T d_sqr=PointEdgeDistanceVal(p,e0,e1);
 								if(d_sqr<dhatsqr){
 									T s = d_sqr / dhatsqr;
-									device_val3(i)= kappa * device_contact_area(xI) * dhat/8*(s-1)*log(s);
+									device_val3(i)= 0.5*kappa * device_contact_area(xI) * dhat/8*(s-1)*log(s);
 								}
 							   } })
 		.wait();
-	return devicesum(device_val1) +
-		   devicesum(device_val2) +
-		   devicesum(device_val3);
+	T val1 = devicesum(device_val1) +
+			 devicesum(device_val2);
+	T val2 = devicesum(device_val3);
+	return val1 + val2;
 } // Calculate the energy
 
 template <typename T, int dim>
@@ -160,7 +165,7 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 								   for (int j = 0; j < dim; j++)
 								   {
 									   T grad =device_contact_area(i) * dhat * (kappa / 2 * (log(s) / dhat + (s - 1) / d)) * device_n_ceil(j);
-									   atomicAdd(&device_grad(i * dim + j), grad);
+									   device_grad(i * dim + j) += grad;
 									   atomicAdd(&device_grad((N-1) * dim + j), -grad);
 								   }
 							   } })
@@ -188,6 +193,7 @@ const DeviceBuffer<T> &BarrierEnergy<T, dim>::grad()
 								}
 							   } })
 		.wait();
+
 	return device_grad;
 }
 
@@ -340,7 +346,6 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n(j) * (device_x(i * dim + j) - device_o(j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
-			//printf("alpha: %f\n", device_alpha(i));
 		} })
 		.wait();
 
@@ -351,7 +356,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 		T p_n = 0;
 		for (int j = 0; j < dim; j++)
 		{
-			p_n += p(i * dim + j) * device_n_ceil(j);
+			p_n += (p(i * dim + j)-p((N-1)*dim+j)) * device_n_ceil(j);
 		}
 		if (p_n < 0)
 		{
@@ -361,33 +366,59 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n_ceil(j) * (device_x(i * dim + j) - device_x((N-1) * dim + j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
-			//printf("alpha: %f\n", device_alpha(i));
 		} })
 		.wait();
 	T current_alpha = min_vector(device_alpha);
-	ParallelFor(256)
-		.apply(Npe, [current_alpha, device_x = device_x.cviewer(), P = p.cviewer(), device_alpha1 = device_alpha1.viewer(), device_bp = pimpl_->device_bp.cviewer(), device_be = pimpl_->device_be.cviewer(), Nbp, Nbe] __device__(int i) mutable
-			   {
-				   int xI = device_bp(i / Nbe);
-				   int eI0 = device_be(2*(i % Nbe)), eI1 = device_be(2*(i % Nbe) + 1);
-				   if (xI != eI0 && xI != eI1){
-					   Eigen::Matrix<T, 2, 1> p, e0, e1, dp, de0, de1; 
-				   p<<device_x(xI*dim),device_x(xI*dim+1);
-				   e0<<device_x(eI0*dim),device_x(eI0*dim+1);
-				   e1<<device_x(eI1*dim),device_x(eI1*dim+1);
-				   dp<<P(xI*dim),P(xI*dim+1);
-				   de0<<P(eI0*dim),P(eI0*dim+1);
-				   de1<<P(eI1*dim),P(eI1*dim+1);
-				   if (bbox_overlap(p, e0, e1, dp, de0, de1, current_alpha))
-				   {
-					   T toc = narrow_phase_CCD(p, e0, e1, dp, de0, de1, current_alpha);
-					   printf("toc: %f\n", toc);
-					   device_alpha1(i) = min(device_alpha1(i), toc);
-				   }
-				   } })
-		.wait();
+	std::vector<T> x(device_x.size());
+	device_x.copy_to(x);
+	std::vector<T> cpu_p(p.size());
+	p.copy_to(cpu_p);
+	for (int i = 0; i < Nbp; i++)
+	{
+		for (int j = 0; j < Nbe; j++)
+		{
+			int xI = pimpl_->bp[i];
+			int eI0 = pimpl_->be[2 * j], eI1 = pimpl_->be[2 * j + 1];
+			if (xI != eI0 && xI != eI1)
+			{
+				Eigen::Matrix<T, 2, 1> p, e0, e1, dp, de0, de1;
+				p << x[xI * dim], x[xI * dim + 1];
+				e0 << x[eI0 * dim], x[eI0 * dim + 1];
+				e1 << x[eI1 * dim], x[eI1 * dim + 1];
+				dp << cpu_p[xI * dim], cpu_p[xI * dim + 1];
+				de0 << cpu_p[eI0 * dim], cpu_p[eI0 * dim + 1];
+				de1 << cpu_p[eI1 * dim], cpu_p[eI1 * dim + 1];
+				if (bbox_overlap(p, e0, e1, dp, de0, de1, current_alpha))
+				{
+					T toc = narrow_phase_CCD(p, e0, e1, dp, de0, de1, current_alpha);
+					if (toc < current_alpha)
+						current_alpha = toc;
+				}
+			}
+		}
+	}
+	// ParallelFor(256)
+	// 	.apply(Npe, [current_alpha, device_x = device_x.cviewer(), P = p.cviewer(), device_alpha1 = device_alpha1.viewer(), device_bp = pimpl_->device_bp.cviewer(), device_be = pimpl_->device_be.cviewer(), Nbp, Nbe] __device__(int i) mutable
+	// 		   {
+	// 			   int xI = device_bp(i / Nbe);
+	// 			   int eI0 = device_be(2*(i % Nbe)), eI1 = device_be(2*(i % Nbe) + 1);
+	// 			   if (xI != eI0 && xI != eI1){
+	// 				   Eigen::Matrix<T, 2, 1> p, e0, e1, dp, de0, de1;
+	// 			   p<<device_x(xI*dim),device_x(xI*dim+1);
+	// 			   e0<<device_x(eI0*dim),device_x(eI0*dim+1);
+	// 			   e1<<device_x(eI1*dim),device_x(eI1*dim+1);
+	// 			   dp<<P(xI*dim),P(xI*dim+1);
+	// 			   de0<<P(eI0*dim),P(eI0*dim+1);
+	// 			   de1<<P(eI1*dim),P(eI1*dim+1);
+	// 			   if (bbox_overlap(p, e0, e1, dp, de0, de1, current_alpha))
+	// 			   {
+	// 				   T toc = narrow_phase_CCD(p, e0, e1, dp, de0, de1, current_alpha);
+	// 				   if (toc < device_alpha1(i))
+	// 					   device_alpha1(i) = toc;
+	// 			   }
+	// 			   } })
+	// 	.wait();
 	T a = min(min_vector(device_alpha1), current_alpha);
-	printf("alpha: %f\n", a);
 	return a;
 }
 template class BarrierEnergy<float, 2>;

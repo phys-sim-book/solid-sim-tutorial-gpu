@@ -96,7 +96,8 @@ T NeoHookeanEnergy<T, dim>::val()
          NeoHookeanEnergyVal(E,  Mu, Lambda,X,device_IB(i),device_vol(i));
          device_val(i) = E; })
         .wait();
-    return devicesum(device_val);
+    T val = devicesum(device_val);
+    return val;
 }
 
 template <typename T, int dim>

@@ -241,7 +241,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 		T p_n = 0;
 		for (int j = 0; j < dim; j++)
 		{
-			p_n += p(i * dim + j) * device_n_ceil(j);
+			p_n += (p(i * dim + j)-p((N-1)*dim+j)) * device_n_ceil(j);
 		}
 		if (p_n < 0)
 		{

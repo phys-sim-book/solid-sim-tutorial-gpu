@@ -65,10 +65,10 @@ InvFreeSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, 
     DBC.push_back((n_seg + 1) * (n_seg + 1));
     DBC_target.resize(DBC.size() * dim);
     DBC_limit.push_back(0);
-    DBC_limit.push_back(-0.6);
+    DBC_limit.push_back(-0.7);
     DBC_v.push_back(0);
-    DBC_v.push_back(-0.3);
-    DBC_stiff = 10;
+    DBC_v.push_back(-0.5);
+    DBC_stiff = 1000;
     x.push_back(0);
     x.push_back(side_len * 0.6);
     DBC_satisfied.resize(x.size() / dim);
