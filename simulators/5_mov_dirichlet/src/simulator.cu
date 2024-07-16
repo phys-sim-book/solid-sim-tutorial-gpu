@@ -14,7 +14,7 @@ template <typename T, int dim>
 struct MovDirichletSimulator<T, dim>::Impl
 {
     int n_seg;
-    T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff;
+    T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff = 1000;
     int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
     std::vector<T> x, x_tilde, v, k, l2, DBC_limit, DBC_v, DBC_target;
     std::vector<int> e, DBC, DBC_satisfied, is_DBC;
@@ -145,7 +145,6 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
     update_x_tilde(add_vector<T>(x, v, 1, h));
     frictionenergy.update_mu_lambda(barrierenergy.compute_mu_lambda(mu));
     update_DBC_target();
-    update_DBC_stiff(10);
     DeviceBuffer<T> x_n = x; // Copy current positions to x_n
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
     int iter = 0;
