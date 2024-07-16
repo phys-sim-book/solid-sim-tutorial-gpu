@@ -125,7 +125,8 @@ const DeviceBuffer<T> &NeoHookeanEnergy<T, dim>::grad()
             }
         } })
         .wait();
-
+	std::vector<T> host_grad(device_grad.size());
+	device_grad.copy_to(host_grad);
     return device_grad;
 }
 

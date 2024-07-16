@@ -5,14 +5,14 @@
 #include "square_mesh.h"
 #include <iostream>
 template <typename T, int dim>
-class InvFreeSimulator
+class SelfContactSimulator
 {
 public:
-    InvFreeSimulator();
-    ~InvFreeSimulator();
-    InvFreeSimulator(InvFreeSimulator &&rhs);
-    InvFreeSimulator &operator=(InvFreeSimulator &&rhs);
-    InvFreeSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, T mu, T Mu_, T Lam_, int n_seg);
+    SelfContactSimulator();
+    ~SelfContactSimulator();
+    SelfContactSimulator(SelfContactSimulator &&rhs);
+    SelfContactSimulator &operator=(SelfContactSimulator &&rhs);
+    SelfContactSimulator(T rho, T side_len, T initial_stretch, T K, T h, T tol, T mu, T Mu_, T Lam_, int n_seg);
     void run();
 
 private:
