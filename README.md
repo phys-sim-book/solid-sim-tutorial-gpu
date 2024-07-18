@@ -43,3 +43,5 @@ CUDA>=11.0
 ![Neohookean Model](./img/6.png)
 ### 7. Neohookean Model with Self Collision
 ![Neohookean Model with Self Collision](./img/7.png)
+### 8. Neohookean Model with Self  Friction
+![Neohookean Model with Self  Friction](./img/8.png)
