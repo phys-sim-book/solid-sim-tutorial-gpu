@@ -213,6 +213,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 	int Nbp = device_bp.size(), Nbe = device_be.size() / 2;
 	int Npe = Nbp * Nbe;
 	int N = device_x.size() / dim;
+	device_hess_val.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, device_n = device_n.cviewer(), device_o = device_o.cviewer()] __device__(int i) mutable
 						   {
 		T d = 0;
@@ -230,8 +231,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 					device_hess_col_idx(idx) = i * dim + k;
 					if (d < dhat)
 						device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n(j) * device_n(k);
-					else
-						device_hess_val(idx) = 0;
 				}
 			} })
 		.wait();
@@ -257,8 +256,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 									device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
 								else
 									device_hess_val(idx) = -device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
-							else
-								device_hess_val(idx) = 0;
 						}
 					} })
 		.wait();
@@ -276,7 +273,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 												int idx = N * dim * dim + (N - 1) * dim * dim * 4 + i * dim * dim*9 + nI * dim * dim*3 + nJ * dim * dim + j * dim + k;
 												device_hess_row_idx(idx) = index[nI] * dim + j;
 												device_hess_col_idx(idx) = index[nJ] * dim + k;
-												device_hess_val(idx) = 0;
 											}
 										}
 								if (xI != eI0 && xI != eI1){
@@ -398,7 +394,7 @@ template class BarrierEnergy<double, 2>;
 template class BarrierEnergy<double, 3>;
 
 template <typename T, int dim>
-void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_lambda, DeviceBuffer<T>& device_mu_lambda_self, DeviceBuffer<Eigen::Matrix<T, 2, 1>>& device_n_self, DeviceBuffer<T>& device_r_self)
+void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T> &device_mu_lambda, DeviceBuffer<T> &device_mu_lambda_self, DeviceBuffer<Eigen::Matrix<T, 2, 1>> &device_n_self, DeviceBuffer<T> &device_r_self)
 {
 	auto &device_x = pimpl_->device_x;
 	auto &device_n = pimpl_->device_n;
@@ -425,7 +421,7 @@ void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_l
 	int Npe = Nbp * Nbe;
 	ParallelFor(256)
 		.apply(Npe, [device_x = device_x.cviewer(), device_mu_lambda_self = device_mu_lambda_self.viewer(), mu, device_n_self = device_n_self.viewer(), device_r_self = device_r_self.viewer(), device_contact_area = device_contact_area.cviewer(), device_bp = pimpl_->device_bp.cviewer(), device_be = pimpl_->device_be.cviewer(), Nbp, Nbe] __device__(int i) mutable
-	{
+			   {
 		int xI = device_bp(i / Nbe);
 		int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
 		if (xI != eI0 && xI != eI1)
@@ -447,7 +443,6 @@ void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_l
 				device_n_self(i) = n;
 				device_r_self(i) = r;
 			}
-		}
-	})
+		} })
 		.wait();
 }

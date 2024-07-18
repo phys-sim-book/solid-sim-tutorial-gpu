@@ -193,7 +193,7 @@ void SelfFrictionSimulator<T, dim>::Impl::step_forward()
 		residual = max_vector(p) / h;
 		iter += 1;
 	}
-	update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+	// update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
 }
 template <typename T, int dim>
 T SelfFrictionSimulator<T, dim>::Impl::screen_projection_x(T point)

@@ -153,22 +153,22 @@ T FrictionEnergy<T, dim>::val()
             device_val1(i) = device_mu_lambda(i) * val;
         } })
         .wait();
-    // ParallelFor(256).apply(pimpl_->npe, [device_val2 = device_val2.viewer(), device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
-    //                        {
-    //         if (device_mu_lambda_self(i) > 0)
-    //         {
-    //             int xI = device_bp(i / Nbe);
-    //             int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
-    //             Eigen::Vector<T, 2> vp, ve0, ve1;
-    //             vp << device_v(xI * dim), device_v(xI * dim + 1);
-    //             ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
-    //             ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
-    // 			Eigen::Matrix<T, 2, 2> mT = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
-    // 			Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
-    // 			Eigen::Matrix<T, 2, 1> vbar = mT.transpose() * rel_v;
-    // 			device_val2(i) = device_mu_lambda_self(i) * f0(vbar.norm(), epsv, hhat);
-    //         } })
-    //     .wait();
+    ParallelFor(256).apply(pimpl_->npe, [device_val2 = device_val2.viewer(), device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
+                           {
+            if (device_mu_lambda_self(i) > 0)
+            {
+                int xI = device_bp(i / Nbe);
+                int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
+                Eigen::Vector<T, 2> vp, ve0, ve1;
+                vp << device_v(xI * dim), device_v(xI * dim + 1);
+                ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
+                ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
+    			Eigen::Matrix<T, 2, 2> T_mat = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
+    			Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
+    			Eigen::Matrix<T, 2, 1> vbar = T_mat * rel_v;
+    			device_val2(i) = device_mu_lambda_self(i) *f0(vbar.norm(), epsv, hhat);
+            } })
+        .wait();
     return devicesum(device_val1) + devicesum(device_val2);
 }
 
@@ -207,29 +207,29 @@ const DeviceBuffer<T> &FrictionEnergy<T, dim>::grad()
             }
         } })
         .wait();
-    // ParallelFor(256).apply(pimpl_->npe, [device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), device_grad = device_grad.viewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
-    //                        {
-    //     if (device_mu_lambda_self(i) > 0)
-    //     {
-    //         int xI = device_bp(i / Nbe);
-    //         int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
-    //         Eigen::Vector<T, 2> vp, ve0, ve1;
-    //         vp << device_v(xI * dim), device_v(xI * dim + 1);
-    //         ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
-    //         ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
-    //         Eigen::Matrix<T, 2, 2> mT = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
-    //         Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
-    //         Eigen::Matrix<T, 2, 1> vbar = mT.transpose() * rel_v;
-    //         T grad_factor = f1_div_vbarnorm(vbar.norm(), epsv);
-    //         Eigen::Matrix<T, 2, 1> grad = grad_factor * mT * vbar;
-    //         for (int j = 0; j < dim; ++j)
-    //         {
-    //             atomic_add(&device_grad(xI * dim + j), device_mu_lambda_self(i) * grad(j));
-    //             atomic_add(&device_grad(eI0 * dim + j), device_mu_lambda_self(i) * grad(j) * -(1 - device_r_self(i)));
-    //             atomic_add(&device_grad(eI1 * dim + j), device_mu_lambda_self(i) * grad(j) * device_r_self(i));
-    //         }
-    //     } })
-    .wait();
+    ParallelFor(256).apply(pimpl_->npe, [device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), device_grad = device_grad.viewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
+                           {
+        if (device_mu_lambda_self(i) > 0)
+        {
+            int xI = device_bp(i / Nbe);
+            int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
+            Eigen::Vector<T, 2> vp, ve0, ve1;
+            vp << device_v(xI * dim), device_v(xI * dim + 1);
+            ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
+            ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
+            Eigen::Matrix<T, 2, 2> Tmat = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
+            Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
+            Eigen::Matrix<T, 2, 1> vbar = Tmat * rel_v;
+            T grad_factor = f1_div_vbarnorm(vbar.norm(), epsv);
+            Eigen::Matrix<T, 2, 1> grad = grad_factor * Tmat * vbar;
+            for (int j = 0; j < dim; ++j)
+            {
+                atomic_add(&device_grad(xI * dim + j), device_mu_lambda_self(i) * grad(j));
+                atomic_add(&device_grad(eI0 * dim + j), device_mu_lambda_self(i) * grad(j) * -(1 - device_r_self(i)));
+                atomic_add(&device_grad(eI1 * dim + j), device_mu_lambda_self(i) * grad(j) * (-device_r_self(i)));
+            }
+        } })
+        .wait();
 
     return device_grad;
 }
@@ -248,6 +248,7 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
     auto device_hess_col_idx = device_hess.col_indices();
     auto device_hess_val = device_hess.values();
     int N = device_v.size() / dim;
+    device_hess_val.fill(0);
     ParallelFor(256).apply(N, [device_v = device_v.cviewer(), device_mu_lambda = device_mu_lambda.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), hhat, n, N, this] __device__(int i) mutable
                            {
         Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
@@ -258,7 +259,6 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
                 int idx = i * dim * dim + j * dim + k;
                 device_hess_row_idx(idx) = i * dim + j;
                 device_hess_col_idx(idx) = i * dim + k;
-                device_hess_val(idx) = 0;
             }
         }
         if (device_mu_lambda(i) > 0)
@@ -288,65 +288,65 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
             }
         } })
         .wait();
-    // ParallelFor(256).apply(pimpl_->npe, [N, device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
-    //                        {
-    //     int xI = device_bp(i / Nbe);
-    //     int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
-    //     int index[3] = { xI, eI0, eI1 };
-    //         for (int nI = 0; nI < 3; ++nI)
-    //         {
-    //             for (int nJ = 0; nJ < 3; ++nJ)
-    //             {
-    //                 for (int c = 0; c < 2; ++c)
-    //                 {
-    //                     for (int r = 0; r < 2; ++r)
-    //                     {
-    //                         int idx = index[nI] * 2 + r;
-    //                         int jdx = index[nJ] * 2 + c;
-    //                         int kdx = N * dim * dim+nI*12+nJ*4+c*2+r;
-    //                         device_hess_row_idx(kdx) = idx;
-    //                         device_hess_col_idx(kdx) = jdx;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     if (device_mu_lambda_self(i) > 0)
-    //     {
+    ParallelFor(256).apply(pimpl_->npe, [N, device_v = device_v.cviewer(), device_mu_lambda_self = pimpl_->device_mu_lambda_self.cviewer(), device_n_self = pimpl_->device_n_self.cviewer(), device_r_self = pimpl_->device_r_self.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), device_bp = device_bp.cviewer(), device_be = device_be.cviewer(), Nbp, Nbe, hhat, this] __device__(int i) mutable
+                           {
+                               int xI = device_bp(i / Nbe);
+                               int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
+                               int index[3] = {xI, eI0, eI1};
+                               for (int nI = 0; nI < 3; ++nI)
+                               {
+                                   for (int nJ = 0; nJ < 3; ++nJ)
+                                   {
+                                       for (int c = 0; c < 2; ++c)
+                                       {
+                                           for (int r = 0; r < 2; ++r)
+                                           {
+                                               int idx = index[nI] * 2 + r;
+                                               int jdx = index[nJ] * 2 + c;
+                                               int kdx = N * dim * dim +i*36+ nI * 12 + nJ * 4 + c * 2 + r;
+                                               device_hess_row_idx(kdx) = idx;
+                                               device_hess_col_idx(kdx) = jdx;
+                                           }
+                                       }
+                                   }
+                               }
+                               if (device_mu_lambda_self(i) > 0)
+                               {
 
-    //         Eigen::Vector<T, 2> vp, ve0, ve1;
-    //         vp << device_v(xI * dim), device_v(xI * dim + 1);
-    //         ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
-    //         ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
-    //         Eigen::Matrix<T, 2, 2> mT = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
-    //         Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
-    //         Eigen::Matrix<T, 2, 1> vbar = mT.transpose() * rel_v;
-    //         T vbarnorm = vbar.norm();
-    //         Eigen::Matrix<T, 2, 2> inner_term = Eigen::Matrix<T, 2, 2>::Identity() * f1_div_vbarnorm(vbarnorm, epsv);
-    //         if (vbarnorm != 0)
-    //         {
-    //             inner_term += f_hess_term(vbarnorm, epsv) / vbarnorm * vbar * vbar.transpose();
-    //         }
-    //         Eigen::Matrix<T, 2, 2> local_hess;
-    //         make_PSD(inner_term, local_hess);
-    //         local_hess = device_mu_lambda_self(i) * mT * local_hess * mT.transpose() / hhat;
+                                   Eigen::Vector<T, 2> vp, ve0, ve1;
+                                   vp << device_v(xI * dim), device_v(xI * dim + 1);
+                                   ve0 << device_v(eI0 * dim), device_v(eI0 * dim + 1);
+                                   ve1 << device_v(eI1 * dim), device_v(eI1 * dim + 1);
+                                   Eigen::Matrix<T, 2, 2> Tmat = Eigen::Matrix<T, 2, 2>::Identity() - device_n_self(i) * device_n_self(i).transpose();
+                                   Eigen::Matrix<T, 2, 1> rel_v = vp - ((1 - device_r_self(i)) * ve0 + device_r_self(i) * ve1);
+                                   Eigen::Matrix<T, 2, 1> vbar = Tmat* rel_v;
+                                   T vbarnorm = vbar.norm();
+                                   Eigen::Matrix<T, 2, 2> inner_term = Eigen::Matrix<T, 2, 2>::Identity() * f1_div_vbarnorm(vbarnorm, epsv);
+                                   if (vbarnorm != 0)
+                                   {
+                                       inner_term += f_hess_term(vbarnorm, epsv) / vbarnorm * vbar * vbar.transpose();
+                                   }
+                                   Eigen::Matrix<T, 2, 2> local_hess;
+                                   make_PSD(inner_term, local_hess);
+                                   local_hess = device_mu_lambda_self(i) * Tmat * local_hess * Tmat.transpose() / hhat;
 
-    //         T d_rel_v_dv[3] = {1, -(1 - device_r_self(i)), -device_r_self(i)};
-    //         for (int nI = 0; nI < 3; ++nI)
-    //         {
-    //             for (int nJ = 0; nJ < 3; ++nJ)
-    //             {
-    //                 for (int c = 0; c < 2; ++c)
-    //                 {
-    //                     for (int r = 0; r < 2; ++r)
-    //                     {
-    //                         int kdx =N * dim * dim + nI * 12 + nJ * 4 + c * 2 + r;
-    //                         device_hess_val(kdx) = d_rel_v_dv[nI] * d_rel_v_dv[nJ] * local_hess(r, c);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     } })
-    //     .wait();
+                                   T d_rel_v_dv[3] = {1, -(1 - device_r_self(i)), -device_r_self(i)};
+                                   for (int nI = 0; nI < 3; ++nI)
+                                   {
+                                       for (int nJ = 0; nJ < 3; ++nJ)
+                                       {
+                                           for (int c = 0; c < 2; ++c)
+                                           {
+                                               for (int r = 0; r < 2; ++r)
+                                               {
+                                                   int kdx =N * dim * dim +i*36+ nI * 12 + nJ * 4 + c * 2 + r;
+                                                   device_hess_val(kdx) = d_rel_v_dv[nI] * d_rel_v_dv[nJ] * local_hess(r, c);
+                                               }
+                                           }
+                                       }
+                                   }
+                               } })
+        .wait();
     return device_hess;
 }
 template class FrictionEnergy<float, 2>;
