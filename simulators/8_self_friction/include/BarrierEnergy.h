@@ -19,7 +19,7 @@ public:
     T val();                                 // Calculate the value of the energy
     const DeviceBuffer<T> &grad();           // Calculate the gradient of the energy
     const DeviceTripletMatrix<T, 1> &hess(); // Calculate the Hessian matrix of the energy
-    void compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_lambda);
+    void compute_mu_lambda(T mu, DeviceBuffer<T> &device_mu_lambda, DeviceBuffer<T>& device_mu_lambda_self, DeviceBuffer<Eigen::Matrix<T, 2, 1>>& device_n_self, DeviceBuffer<T>& device_r_self);
     T init_step_size(const DeviceBuffer<T> &p); // Calculate the initial step size for the line search
 
 private:

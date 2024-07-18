@@ -143,7 +143,7 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
 {
     DeviceBuffer<T> x_tilde(x.size()); // Predictive position
     update_x_tilde(add_vector<T>(x, v, 1, h));
-    frictionenergy.update_mu_lambda(barrierenergy.compute_mu_lambda(mu));
+    barrierenergy.compute_mu_lambda(mu, frictionenergy.get_mu_lambda());
     update_DBC_target();
     DeviceBuffer<T> x_n = x; // Copy current positions to x_n
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));

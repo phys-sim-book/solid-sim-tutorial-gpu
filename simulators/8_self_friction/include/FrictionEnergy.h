@@ -9,7 +9,7 @@ template <typename T, int dim>
 class FrictionEnergy
 {
 public:
-    FrictionEnergy(const std::vector<T> &v, T hhat, const std::vector<T> &n);
+    FrictionEnergy(const std::vector<T> &v, T hhat, const std::vector<T> &n, const std::vector<int>& bp, const std::vector<int>& be, int npe);
     FrictionEnergy();
     ~FrictionEnergy();
     FrictionEnergy(FrictionEnergy &&rhs);
@@ -18,6 +18,9 @@ public:
 
     void update_v(const DeviceBuffer<T> &v);
     DeviceBuffer<T> &get_mu_lambda();
+    DeviceBuffer<T>& get_mu_lambda_self();
+    DeviceBuffer<Eigen::Matrix<T, 2, 1>>& get_n_self();
+    DeviceBuffer<T>& get_r_self();
     T val();                                 // Calculate the value of the energy
     const DeviceBuffer<T> &grad();           // Calculate the gradient of the energy
     const DeviceTripletMatrix<T, 1> &hess(); // Calculate the Hessian matrix of the energy

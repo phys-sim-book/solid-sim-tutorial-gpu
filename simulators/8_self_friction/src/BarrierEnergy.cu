@@ -398,17 +398,18 @@ template class BarrierEnergy<double, 2>;
 template class BarrierEnergy<double, 3>;
 
 template <typename T, int dim>
-void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_lambda)
+void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_lambda, DeviceBuffer<T>& device_mu_lambda_self, DeviceBuffer<Eigen::Matrix<T, 2, 1>>& device_n_self, DeviceBuffer<T>& device_r_self)
 {
-	auto& device_x = pimpl_->device_x;
-	auto& device_n = pimpl_->device_n;
-	auto& device_o = pimpl_->device_o;
-	auto& device_contact_area = pimpl_->device_contact_area;
+	auto &device_x = pimpl_->device_x;
+	auto &device_n = pimpl_->device_n;
+	auto &device_o = pimpl_->device_o;
+	auto &device_contact_area = pimpl_->device_contact_area;
 	int N = device_x.size() / dim;
 	device_mu_lambda.fill(0);
+	device_mu_lambda_self.fill(0);
 	ParallelFor(256)
 		.apply(N, [device_x = device_x.cviewer(), device_mu_lambda = device_mu_lambda.viewer(), mu, device_n = device_n.cviewer(), device_o = device_o.cviewer(), device_contact_area = device_contact_area.cviewer()] __device__(int i) mutable
-	{
+			   {
 		T d = 0;
 		for (int j = 0; j < dim; j++)
 		{
@@ -416,8 +417,36 @@ void BarrierEnergy<T, dim>::compute_mu_lambda(T mu, DeviceBuffer<T>& device_mu_l
 		}
 		if (d < dhat)
 		{
-			T s = d / dhat;
-			device_mu_lambda(i) = mu * -device_contact_area(i) * dhat * (kappa / 2 * (log(s) / dhat + (s - 1) / d));
+			T s=d/dhat;
+			device_mu_lambda(i) = mu*-device_contact_area(i) * dhat *(kappa / 2 * (log(s) / dhat + (s - 1) / d));
+		} })
+		.wait();
+	int Nbp = pimpl_->device_bp.size(), Nbe = pimpl_->device_be.size() / 2;
+	int Npe = Nbp * Nbe;
+	ParallelFor(256)
+		.apply(Npe, [device_x = device_x.cviewer(), device_mu_lambda_self = device_mu_lambda_self.viewer(), mu, device_n_self = device_n_self.viewer(), device_r_self = device_r_self.viewer(), device_contact_area = device_contact_area.cviewer(), device_bp = pimpl_->device_bp.cviewer(), device_be = pimpl_->device_be.cviewer(), Nbp, Nbe] __device__(int i) mutable
+	{
+		int xI = device_bp(i / Nbe);
+		int eI0 = device_be(2 * (i % Nbe)), eI1 = device_be(2 * (i % Nbe) + 1);
+		if (xI != eI0 && xI != eI1)
+		{
+			Eigen::Vector<T, 2> p, e0, e1;
+			p << device_x(xI * dim), device_x(xI * dim + 1);
+			e0 << device_x(eI0 * dim), device_x(eI0 * dim + 1);
+			e1 << device_x(eI1 * dim), device_x(eI1 * dim + 1);
+			T dhatsqr = dhat * dhat;
+			T d_sqr = PointEdgeDistanceVal(p, e0, e1);
+			if (d_sqr < dhatsqr)
+			{
+				T s = d_sqr / dhatsqr;
+				T dhat_sqr = dhat * dhat;
+				device_mu_lambda_self(i) = mu * -0.5 * device_contact_area(xI) * dhat * (kappa / 8 * (log(s) / dhat_sqr + (s - 1) / d_sqr)) * 2 * sqrt(d_sqr);
+				T r;
+				Eigen::Matrix<T, 2, 1>n;
+				PointEdgeDistanceTangent(p, e0, e1,  n,r );
+				device_n_self(i) = n;
+				device_r_self(i) = r;
+			}
 		}
 	})
 		.wait();

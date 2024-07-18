@@ -11,7 +11,7 @@
 #include "uti.h"
 using namespace muda;
 template <typename T, int dim>
-struct SelfContactSimulator<T, dim>::Impl
+struct SelfFrictionSimulator<T, dim>::Impl
 {
 	int n_seg;
 	T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff, Mu, Lambda;
@@ -28,9 +28,9 @@ struct SelfContactSimulator<T, dim>::Impl
 	FrictionEnergy<T, dim> frictionenergy;
 	SpringEnergy<T, dim> springenergy;
 	Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg);
-	void update_x(const DeviceBuffer<T>& new_x);
-	void update_x_tilde(const DeviceBuffer<T>& new_x_tilde);
-	void update_v(const DeviceBuffer<T>& new_v);
+	void update_x(const DeviceBuffer<T> &new_x);
+	void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
+	void update_v(const DeviceBuffer<T> &new_v);
 	void update_DBC_target();
 	void update_DBC_stiff(T new_DBC_stiff);
 	T IP_val();
@@ -43,23 +43,23 @@ struct SelfContactSimulator<T, dim>::Impl
 	T screen_projection_y(T point);
 };
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::SelfContactSimulator() = default;
+SelfFrictionSimulator<T, dim>::SelfFrictionSimulator() = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::~SelfContactSimulator() = default;
+SelfFrictionSimulator<T, dim>::~SelfFrictionSimulator() = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::SelfContactSimulator(SelfContactSimulator<T, dim>&& rhs) = default;
+SelfFrictionSimulator<T, dim>::SelfFrictionSimulator(SelfFrictionSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>& SelfContactSimulator<T, dim>::operator=(SelfContactSimulator<T, dim>&& rhs) = default;
+SelfFrictionSimulator<T, dim> &SelfFrictionSimulator<T, dim>::operator=(SelfFrictionSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::SelfContactSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : pimpl_{ std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, Mu_, Lam_, n_seg) }
+SelfFrictionSimulator<T, dim>::SelfFrictionSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, Mu_, Lam_, n_seg)}
 {
 }
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : tol(tol_), h(h_), mu(mu_), Mu(Mu_), Lambda(Lam_), window(sf::VideoMode(resolution, resolution), "SelfContactSimulator")
+SelfFrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : tol(tol_), h(h_), mu(mu_), Mu(Mu_), Lambda(Lam_), window(sf::VideoMode(resolution, resolution), "SelfFrictionSimulator")
 {
 	generate(side_len, n_seg, x, e);
 	for (int i = 0; i < (n_seg + 1) * (n_seg + 1); i++)
@@ -113,11 +113,13 @@ SelfContactSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T
 	int N = x.size() / dim;
 	for (int i = 0; i < N; i++)
 		x[i * dim + 0] *= initial_stretch;
+	int Nbp = bp.size(), Nbe = be.size() / 2;
+	int Npe = Nbp * Nbe;
 	inertialenergy = InertialEnergy<T, dim>(N, m);
 	neohookeanenergy = NeoHookeanEnergy<T, dim>(x, e, Mu, Lambda);
 	gravityenergy = GravityEnergy<T, dim>(N, m);
 	barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, bp, be, contact_area);
-	frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n);
+	frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n, bp, be, Npe);
 	springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, DBC_stiff);
 	DeviceBuffer<T> x_device(x);
 	update_x(x_device);
@@ -125,11 +127,11 @@ SelfContactSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T
 	device_contact_area = DeviceBuffer<T>(contact_area);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::run()
+void SelfFrictionSimulator<T, dim>::run()
 {
 	assert(dim == 2);
 	bool running = true;
-	auto& window = pimpl_->window;
+	auto &window = pimpl_->window;
 	int time_step = 0;
 	while (running)
 	{
@@ -151,11 +153,11 @@ void SelfContactSimulator<T, dim>::run()
 }
 
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::step_forward()
+void SelfFrictionSimulator<T, dim>::Impl::step_forward()
 {
 	DeviceBuffer<T> x_tilde(x.size()); // Predictive position
 	update_x_tilde(add_vector<T>(x, v, 1, h));
-	barrierenergy.compute_mu_lambda(mu, frictionenergy.get_mu_lambda());
+	barrierenergy.compute_mu_lambda(mu, frictionenergy.get_mu_lambda(), frictionenergy.get_mu_lambda_self(), frictionenergy.get_n_self(), frictionenergy.get_r_self());
 	update_DBC_target();
 	// update_DBC_stiff(10);
 	DeviceBuffer<T> x_n = x; // Copy current positions to x_n
@@ -194,17 +196,17 @@ void SelfContactSimulator<T, dim>::Impl::step_forward()
 	update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
 }
 template <typename T, int dim>
-T SelfContactSimulator<T, dim>::Impl::screen_projection_x(T point)
+T SelfFrictionSimulator<T, dim>::Impl::screen_projection_x(T point)
 {
 	return offset + scale * point;
 }
 template <typename T, int dim>
-T SelfContactSimulator<T, dim>::Impl::screen_projection_y(T point)
+T SelfFrictionSimulator<T, dim>::Impl::screen_projection_y(T point)
 {
 	return resolution - (offset + scale * point);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T>& new_x)
+void SelfFrictionSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
 {
 	inertialenergy.update_x(new_x);
 	neohookeanenergy.update_x(new_x);
@@ -214,19 +216,19 @@ void SelfContactSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T>& new_x)
 	new_x.copy_to(x);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T>& new_x_tilde)
+void SelfFrictionSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
 	inertialenergy.update_x_tilde(new_x_tilde);
 	new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T>& new_v)
+void SelfFrictionSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
 	frictionenergy.update_v(new_v);
 	new_v.copy_to(v);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_DBC_target()
+void SelfFrictionSimulator<T, dim>::Impl::update_DBC_target()
 {
 	for (int i = 0; i < DBC.size(); i++)
 	{
@@ -253,13 +255,13 @@ void SelfContactSimulator<T, dim>::Impl::update_DBC_target()
 	springenergy.update_DBC_target(DBC_target);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_DBC_stiff(T new_DBC_stiff)
+void SelfFrictionSimulator<T, dim>::Impl::update_DBC_stiff(T new_DBC_stiff)
 {
 	DBC_stiff = new_DBC_stiff;
 	springenergy.update_k(new_DBC_stiff);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::draw()
+void SelfFrictionSimulator<T, dim>::Impl::draw()
 {
 	window.clear(sf::Color::White); // Clear the previous frame
 
@@ -269,7 +271,7 @@ void SelfContactSimulator<T, dim>::Impl::draw()
 
 		sf::Vertex line[] = {
 			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3] * dim]), screen_projection_y(x[e[i * 3] * dim + 1])), sf::Color::Blue),
-			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue) };
+			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue)};
 		window.draw(line, 2, sf::Lines);
 		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue);
 		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 2] * dim]), screen_projection_y(x[e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
@@ -291,26 +293,26 @@ void SelfContactSimulator<T, dim>::Impl::draw()
 }
 
 template <typename T, int dim>
-T SelfContactSimulator<T, dim>::Impl::IP_val()
+T SelfFrictionSimulator<T, dim>::Impl::IP_val()
 {
 
 	return inertialenergy.val() + (neohookeanenergy.val() + gravityenergy.val() + barrierenergy.val() + frictionenergy.val()) * h * h + springenergy.val();
 }
 
 template <typename T, int dim>
-DeviceBuffer<T> SelfContactSimulator<T, dim>::Impl::IP_grad()
+DeviceBuffer<T> SelfFrictionSimulator<T, dim>::Impl::IP_grad()
 {
 	return add_vector<T>(
 		add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
-			neohookeanenergy.grad(), 1.0, h * h),
-			gravityenergy.grad(), 1.0, h * h),
-			barrierenergy.grad(), 1.0, h * h),
-			frictionenergy.grad(), 1.0, h * h),
+																neohookeanenergy.grad(), 1.0, h * h),
+												  gravityenergy.grad(), 1.0, h * h),
+									barrierenergy.grad(), 1.0, h * h),
+					  frictionenergy.grad(), 1.0, h * h),
 		springenergy.grad(), 1.0, 1.0);
 }
 
 template <typename T, int dim>
-DeviceTripletMatrix<T, 1> SelfContactSimulator<T, dim>::Impl::IP_hess()
+DeviceTripletMatrix<T, 1> SelfFrictionSimulator<T, dim>::Impl::IP_hess()
 {
 	DeviceTripletMatrix<T, 1> inertial_hess = inertialenergy.hess();
 	DeviceTripletMatrix<T, 1> neohookean_hess = neohookeanenergy.hess();
@@ -324,7 +326,7 @@ DeviceTripletMatrix<T, 1> SelfContactSimulator<T, dim>::Impl::IP_hess()
 	return hess;
 }
 template <typename T, int dim>
-DeviceBuffer<T> SelfContactSimulator<T, dim>::Impl::search_direction()
+DeviceBuffer<T> SelfFrictionSimulator<T, dim>::Impl::search_direction()
 {
 	DeviceBuffer<T> dir;
 	dir.resize(x.size());
@@ -353,7 +355,7 @@ DeviceBuffer<T> SelfContactSimulator<T, dim>::Impl::search_direction()
 	return dir;
 }
 
-template class SelfContactSimulator<float, 2>;
-template class SelfContactSimulator<double, 2>;
-template class SelfContactSimulator<float, 3>;
-template class SelfContactSimulator<double, 3>;
+template class SelfFrictionSimulator<float, 2>;
+template class SelfFrictionSimulator<double, 2>;
+template class SelfFrictionSimulator<float, 3>;
+template class SelfFrictionSimulator<double, 3>;

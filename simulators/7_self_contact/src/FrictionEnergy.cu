@@ -55,10 +55,11 @@ void FrictionEnergy<T, dim>::update_v(const DeviceBuffer<T> &v)
     pimpl_->device_v.view().copy_from(v);
 }
 template <typename T, int dim>
-void FrictionEnergy<T, dim>::update_mu_lambda(const DeviceBuffer<T> &mu_lambda)
+DeviceBuffer<T>& FrictionEnergy<T, dim>::get_mu_lambda()
 {
-    pimpl_->device_mu_lambda.view().copy_from(mu_lambda);
+    return pimpl_->device_mu_lambda;
 }
+
 
 template <typename T, int dim>
 T __device__ FrictionEnergy<T, dim>::f0(T vbarnorm, T Epsv, T hhat)
@@ -181,6 +182,15 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
     ParallelFor(256).apply(N, [device_v = device_v.cviewer(), device_mu_lambda = device_mu_lambda.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), hhat, n, N, this] __device__(int i) mutable
                            {
         Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
+        for (int j = 0; j < dim; ++j)
+        {
+            for (int k = 0; k < dim; ++k)
+            {
+                int idx = i * dim * dim + j * dim + k;
+                device_hess_row_idx(idx) = i * dim + j;
+                device_hess_col_idx(idx) = i * dim + k;
+            }
+        }
         if (device_mu_lambda(i) > 0)
         {
             Eigen::Matrix<T, dim, 1> v;
@@ -203,8 +213,6 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
                 for (int k = 0; k < dim; ++k)
                 {
                     int idx = i * dim * dim + j * dim + k;
-                    device_hess_row_idx(idx) = i * dim + j;
-                    device_hess_col_idx(idx) = i * dim + k;
                     device_hess_val(idx) = local_hess(j, k);
                 }
             }

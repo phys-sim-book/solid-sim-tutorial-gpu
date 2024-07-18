@@ -17,7 +17,7 @@ public:
     FrictionEnergy &operator=(FrictionEnergy &&rhs);
 
     void update_v(const DeviceBuffer<T> &v);
-    void update_mu_lambda(const DeviceBuffer<T> &mu_lambda);
+    DeviceBuffer<T> &get_mu_lambda();
     T val();                                 // Calculate the value of the energy
     const DeviceBuffer<T> &grad();           // Calculate the gradient of the energy
     const DeviceTripletMatrix<T, 1> &hess(); // Calculate the Hessian matrix of the energy
