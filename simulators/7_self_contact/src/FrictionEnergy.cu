@@ -55,11 +55,10 @@ void FrictionEnergy<T, dim>::update_v(const DeviceBuffer<T> &v)
     pimpl_->device_v.view().copy_from(v);
 }
 template <typename T, int dim>
-DeviceBuffer<T>& FrictionEnergy<T, dim>::get_mu_lambda()
+DeviceBuffer<T> &FrictionEnergy<T, dim>::get_mu_lambda()
 {
     return pimpl_->device_mu_lambda;
 }
-
 
 template <typename T, int dim>
 T __device__ FrictionEnergy<T, dim>::f0(T vbarnorm, T Epsv, T hhat)
