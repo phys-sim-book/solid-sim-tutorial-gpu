@@ -68,7 +68,7 @@ MovDirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
     DBC_limit.push_back(-0.6);
     DBC_v.push_back(0);
     DBC_v.push_back(-0.5);
-    DBC_stiff = 10;
+    DBC_stiff = 1000;
     x.push_back(0);
     x.push_back(side_len * 0.6);
     DBC_satisfied.resize(x.size() / dim);
@@ -154,6 +154,7 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol || DBC_satisfied.back() != 1) // use last one for simplisity, should check all
     {
+        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
         if (residual <= tol && DBC_satisfied.back() != 1)
         {
             update_DBC_stiff(DBC_stiff * 2);
@@ -172,7 +173,7 @@ void MovDirichletSimulator<T, dim>::Impl::step_forward()
         }
         std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
-        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
+
         p = search_direction();
         residual = max_vector(p) / h;
         iter += 1;

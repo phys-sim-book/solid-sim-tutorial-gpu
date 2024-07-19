@@ -91,6 +91,7 @@ void ContactSimulator<T, dim>::run()
     assert(dim == 2);
     bool running = true;
     auto &window = pimpl_->window;
+    int time_step = 0;
     while (running)
     {
         sf::Event event;
@@ -101,7 +102,7 @@ void ContactSimulator<T, dim>::run()
         }
 
         pimpl_->draw(); // Draw the current state
-
+        std::cout << "Time step " << time_step++ << "\n";
         // Update the simulation state
         pimpl_->step_forward();
     }
@@ -122,6 +123,7 @@ void ContactSimulator<T, dim>::Impl::step_forward()
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
+        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
         // Line search
         T alpha = barrierenergy.init_step_size(p);
         DeviceBuffer<T> x0 = x;
@@ -133,7 +135,7 @@ void ContactSimulator<T, dim>::Impl::step_forward()
         }
         std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
-        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
+
         p = search_direction();
         residual = max_vector(p) / h;
         iter += 1;

@@ -114,9 +114,19 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 	auto device_hess_col_idx = device_hess.col_indices();
 	auto device_hess_val = device_hess.values();
 	int N = device_x.size() / dim;
+	device_hess_val.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, device_n = device_n.cviewer(), device_o = device_o.cviewer()] __device__(int i) mutable
 						   {
 		T d = 0;
+		for (int j = 0; j < dim; j++)
+			{
+				for (int k = 0; k < dim; k++)
+				{
+					int idx = i * dim * dim + j * dim + k;
+					device_hess_row_idx(idx) = i * dim + j;
+					device_hess_col_idx(idx) = i * dim + k;
+				}
+			}
 		for (int j = 0; j < dim; j++)
 		{
 			d += device_n(j) * (device_x(i * dim + j) - device_o(j));
@@ -127,20 +137,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 				for (int k = 0; k < dim; k++)
 				{
 					int idx = i * dim * dim + j * dim + k;
-					device_hess_row_idx(idx) = i * dim + j;
-					device_hess_col_idx(idx) = i * dim + k;
 					device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n(j) * device_n(k);
-				}
-			}
-		else
-			for (int j = 0; j < dim; j++)
-			{
-				for (int k = 0; k < dim; k++)
-				{
-					int idx = i * dim * dim + j * dim + k;
-					device_hess_row_idx(idx) = i * dim + j;
-					device_hess_col_idx(idx) = i * dim + k;
-					device_hess_val(idx) = 0;
 				}
 			} })
 		.wait();

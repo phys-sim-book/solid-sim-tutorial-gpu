@@ -230,7 +230,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n(j) * (device_x(i * dim + j) - device_o(j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
-			//printf("alpha: %f\n", device_alpha(i));
+
 		} })
 		.wait();
 

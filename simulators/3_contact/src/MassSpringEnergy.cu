@@ -121,7 +121,6 @@ const DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 							  
 						   } })
 		.wait();
-	// display_vec(device_grad);
 	return device_grad;
 }
 
@@ -137,6 +136,7 @@ const DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 	auto device_hess_row_idx = device_hess.row_indices();
 	auto device_hess_col_idx = device_hess.col_indices();
 	auto device_hess_val = device_hess.values();
+	device_hess_val.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N] __device__(int i) mutable
 						   {
 		int idx[2] = {device_e(2 * i), device_e(2 * i + 1)}; // First node index

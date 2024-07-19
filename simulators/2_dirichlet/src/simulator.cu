@@ -82,11 +82,13 @@ DirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K
     device_DBC = DeviceBuffer<int>(DBC);
 }
 template <typename T, int dim>
+
 void DirichletSimulator<T, dim>::run()
 {
     assert(dim == 2);
     bool running = true;
     auto &window = pimpl_->window;
+    int time_step = 0;
     while (running)
     {
         sf::Event event;
@@ -97,7 +99,7 @@ void DirichletSimulator<T, dim>::run()
         }
 
         pimpl_->draw(); // Draw the current state
-
+        std::cout << "Time step " << time_step++ << "\n";
         // Update the simulation state
         pimpl_->step_forward();
     }
@@ -118,6 +120,7 @@ void DirichletSimulator<T, dim>::Impl::step_forward()
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
+        std::cout << "Iteration " << iter << " residual " << residual << "E_last" << E_last << "\n";
         // Line search
         T alpha = 1;
         DeviceBuffer<T> x0 = x;

@@ -1,6 +1,5 @@
 #pragma once
 #include <Eigen/Dense>
-#include "SparseMatrix.h"
 #include <muda/cub/device/device_reduce.h>
 #include <muda/container.h>
 #include <muda/muda.h>

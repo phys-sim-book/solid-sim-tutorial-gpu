@@ -31,7 +31,8 @@ void __device__ make_PSD(const Eigen::Matrix<T, Size, Size> &hess, Eigen::Matrix
     Eigen::Matrix<T, Size, Size> lamDiag;
     lamDiag.setZero();
     for (int i = 0; i < Size; i++)
-        lamDiag(i, i) = lam(i);
+        if (lam(i) > 0)
+            lamDiag(i, i) = lam(i);
 
     Eigen::Matrix<T, Size, Size> VT = V.transpose();
 

@@ -137,6 +137,7 @@ void FrictionSimulator<T, dim>::Impl::step_forward()
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
+        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
         // Line search
         T alpha = barrierenergy.init_step_size(p);
         DeviceBuffer<T> x0 = x;
@@ -150,7 +151,6 @@ void FrictionSimulator<T, dim>::Impl::step_forward()
         }
         std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
-        std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
         p = search_direction();
         residual = max_vector(p) / h;
         iter += 1;

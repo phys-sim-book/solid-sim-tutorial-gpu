@@ -100,6 +100,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 	auto device_hess_col_idx = device_hess.col_indices();
 	auto y_ground = pimpl_->y_ground;
 	auto device_hess_val = device_hess.values();
+	device_hess_val.fill(0);
 	int N = device_x.size() / dim;
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, y_ground] __device__(int i) mutable
 						   {
@@ -109,9 +110,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 		if (d < dhat)
 		{
 			device_hess_val(i) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat);
-		}
-		else{
-			device_hess_val(i) = 0;
 		} })
 		.wait();
 	return device_hess;
@@ -130,7 +128,7 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 						   {
 							   if (p(i * dim + 1) < 0)
 							   {
-								   device_alpha(i) = 0.9 * (y_ground - device_x(i * dim + 1)) / p(i * dim + 1);
+								   device_alpha(i) =min(device_alpha(i), 0.9 * (y_ground - device_x(i * dim + 1)) / p(i * dim + 1));
 							   } })
 		.wait();
 	return min_vector(device_alpha);
