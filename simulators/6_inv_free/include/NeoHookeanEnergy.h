@@ -26,13 +26,4 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> pimpl_;
-    // static __device__ void polar_svd(const Eigen::Matrix<T, dim, dim> &F, Eigen::Matrix<T, dim, dim> &U, Eigen::Matrix<T, dim, dim> &V, Eigen::Matrix<T, dim, 1> &s);
-    // static __device__ Eigen::Matrix<T, dim, 1> dPsi_div_dsigma(const Eigen::Matrix<T, dim, 1> &s, T mu, T lam);
-    // static __device__ Eigen::Matrix<T, dim, dim> d2Psi_div_dsigma2(const Eigen::Matrix<T, dim, 1> &s, T mu, T lam);
-    // static __device__ T B_left_coef(const Eigen::Matrix<T, dim, 1> &s, T mu, T lam);
-    // static __device__ T Psi(const Eigen::Matrix<T, dim, dim> &F, T mu, T lam);
-    // static __device__ Eigen::Matrix<T, dim, dim> dPsi_div_dF(const Eigen::Matrix<T, dim, dim> &F, T mu, T lam);
-    // static __device__ Eigen::Matrix<T, 4, 4> d2Psi_div_dF2(const Eigen::Matrix<T, dim, dim> &F, T mu, T lam);
-    // static __device__ Eigen::Matrix<T, 6, 1> dPsi_div_dx(const Eigen::Matrix<T, dim, dim> &P, const Eigen::Matrix<T, dim, dim> &IB);
-    // static __device__ Eigen::Matrix<T, 6, 6> d2Psi_div_dx2(const Eigen::Matrix<T, 4, 4> &dP_div_dF, const Eigen::Matrix<T, dim, dim> &IB);
 };

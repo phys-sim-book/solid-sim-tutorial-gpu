@@ -142,7 +142,7 @@ const DeviceTripletMatrix<T, 1> &NeoHookeanEnergy<T, dim>::hess()
     auto Mu = pimpl_->Mu;
     auto Lambda = pimpl_->Lambda;
     int N = device_e.size() / 3;
-
+    device_hess_val.fill(0);
     ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_vol = device_vol.cviewer(), device_IB = device_IB.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), Mu, Lambda] __device__(int i) mutable
                            {    Eigen::Matrix<T, 6, 6> local_hess;
                             Eigen::Vector<T, 6> X;

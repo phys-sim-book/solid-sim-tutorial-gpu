@@ -28,9 +28,9 @@ struct SelfContactSimulator<T, dim>::Impl
 	FrictionEnergy<T, dim> frictionenergy;
 	SpringEnergy<T, dim> springenergy;
 	Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg);
-	void update_x(const DeviceBuffer<T>& new_x);
-	void update_x_tilde(const DeviceBuffer<T>& new_x_tilde);
-	void update_v(const DeviceBuffer<T>& new_v);
+	void update_x(const DeviceBuffer<T> &new_x);
+	void update_x_tilde(const DeviceBuffer<T> &new_x_tilde);
+	void update_v(const DeviceBuffer<T> &new_v);
 	void update_DBC_target();
 	void update_DBC_stiff(T new_DBC_stiff);
 	T IP_val();
@@ -49,13 +49,13 @@ template <typename T, int dim>
 SelfContactSimulator<T, dim>::~SelfContactSimulator() = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::SelfContactSimulator(SelfContactSimulator<T, dim>&& rhs) = default;
+SelfContactSimulator<T, dim>::SelfContactSimulator(SelfContactSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>& SelfContactSimulator<T, dim>::operator=(SelfContactSimulator<T, dim>&& rhs) = default;
+SelfContactSimulator<T, dim> &SelfContactSimulator<T, dim>::operator=(SelfContactSimulator<T, dim> &&rhs) = default;
 
 template <typename T, int dim>
-SelfContactSimulator<T, dim>::SelfContactSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : pimpl_{ std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, Mu_, Lam_, n_seg) }
+SelfContactSimulator<T, dim>::SelfContactSimulator(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : pimpl_{std::make_unique<Impl>(rho, side_len, initial_stretch, K, h_, tol_, mu_, Mu_, Lam_, n_seg)}
 {
 }
 template <typename T, int dim>
@@ -129,7 +129,7 @@ void SelfContactSimulator<T, dim>::run()
 {
 	assert(dim == 2);
 	bool running = true;
-	auto& window = pimpl_->window;
+	auto &window = pimpl_->window;
 	int time_step = 0;
 	while (running)
 	{
@@ -204,7 +204,7 @@ T SelfContactSimulator<T, dim>::Impl::screen_projection_y(T point)
 	return resolution - (offset + scale * point);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T>& new_x)
+void SelfContactSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
 {
 	inertialenergy.update_x(new_x);
 	neohookeanenergy.update_x(new_x);
@@ -214,13 +214,13 @@ void SelfContactSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T>& new_x)
 	new_x.copy_to(x);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T>& new_x_tilde)
+void SelfContactSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
 	inertialenergy.update_x_tilde(new_x_tilde);
 	new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
-void SelfContactSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T>& new_v)
+void SelfContactSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
 	frictionenergy.update_v(new_v);
 	new_v.copy_to(v);
@@ -263,13 +263,25 @@ void SelfContactSimulator<T, dim>::Impl::draw()
 {
 	window.clear(sf::Color::White); // Clear the previous frame
 
+	// Draw the ground
+	sf::Vertex line1[] = {
+		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(-1.0)), sf::Color::Blue),
+		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(-1.0)), sf::Color::Blue)};
+	window.draw(line1, 2, sf::Lines);
+
+	// Draw the ceiling
+	sf::Vertex line2[] = {
+		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue),
+		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue)};
+	window.draw(line2, 2, sf::Lines);
+
 	// Draw springs as lines
 	for (int i = 0; i < e.size() / 3; ++i)
 	{
 
 		sf::Vertex line[] = {
 			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3] * dim]), screen_projection_y(x[e[i * 3] * dim + 1])), sf::Color::Blue),
-			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue) };
+			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue)};
 		window.draw(line, 2, sf::Lines);
 		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue);
 		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 2] * dim]), screen_projection_y(x[e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
@@ -280,7 +292,7 @@ void SelfContactSimulator<T, dim>::Impl::draw()
 	}
 
 	// Draw masses as circles
-	for (int i = 0; i < (x.size()) / dim; ++i)
+	for (int i = 0; i < (x.size() - 1) / dim; ++i)
 	{
 		sf::CircleShape circle(radius); // Set a fixed radius for each mass
 		circle.setFillColor(sf::Color::Red);
@@ -302,10 +314,10 @@ DeviceBuffer<T> SelfContactSimulator<T, dim>::Impl::IP_grad()
 {
 	return add_vector<T>(
 		add_vector<T>(add_vector<T>(add_vector<T>(add_vector<T>(inertialenergy.grad(),
-			neohookeanenergy.grad(), 1.0, h * h),
-			gravityenergy.grad(), 1.0, h * h),
-			barrierenergy.grad(), 1.0, h * h),
-			frictionenergy.grad(), 1.0, h * h),
+																neohookeanenergy.grad(), 1.0, h * h),
+												  gravityenergy.grad(), 1.0, h * h),
+									barrierenergy.grad(), 1.0, h * h),
+					  frictionenergy.grad(), 1.0, h * h),
 		springenergy.grad(), 1.0, 1.0);
 }
 

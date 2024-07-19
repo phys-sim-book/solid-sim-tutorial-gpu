@@ -265,6 +265,18 @@ void SelfFrictionSimulator<T, dim>::Impl::draw()
 {
 	window.clear(sf::Color::White); // Clear the previous frame
 
+	// Draw the ground
+	sf::Vertex line1[] = {
+		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(-1.0)), sf::Color::Blue),
+		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(-1.0)), sf::Color::Blue)};
+	window.draw(line1, 2, sf::Lines);
+
+	// Draw the ceiling
+	sf::Vertex line2[] = {
+		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue),
+		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue)};
+	window.draw(line2, 2, sf::Lines);
+
 	// Draw springs as lines
 	for (int i = 0; i < e.size() / 3; ++i)
 	{
@@ -282,7 +294,7 @@ void SelfFrictionSimulator<T, dim>::Impl::draw()
 	}
 
 	// Draw masses as circles
-	for (int i = 0; i < (x.size()) / dim; ++i)
+	for (int i = 0; i < (x.size() - 1) / dim; ++i)
 	{
 		sf::CircleShape circle(radius); // Set a fixed radius for each mass
 		circle.setFillColor(sf::Color::Red);

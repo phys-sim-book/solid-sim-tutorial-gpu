@@ -33,7 +33,7 @@ BarrierEnergy<T, dim>::BarrierEnergy(const BarrierEnergy<T, dim> &rhs)
 	: pimpl_{std::make_unique<Impl>(*rhs.pimpl_)} {}
 
 template <typename T, int dim>
-BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<T> n, const std::vector<T> o, const std::vector<T> &contact_area) : pimpl_{std::make_unique<Impl>()}
+BarrierEnergy<T, dim>::BarrierEnergy(const std::vector<T> &x, const std::vector<T> &n, const std::vector<T> &o, const std::vector<T> &contact_area) : pimpl_{std::make_unique<Impl>()}
 {
 	pimpl_->N = x.size() / dim;
 	pimpl_->device_x.copy_from(x);

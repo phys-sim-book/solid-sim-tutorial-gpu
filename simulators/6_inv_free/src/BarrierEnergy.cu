@@ -150,6 +150,7 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 	auto device_hess_col_idx = device_hess.col_indices();
 	auto device_hess_val = device_hess.values();
 	int N = device_x.size() / dim;
+	device_hess_val.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_contact_area = device_contact_area.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), N, device_n = device_n.cviewer(), device_o = device_o.cviewer()] __device__(int i) mutable
 						   {
 		T d = 0;
@@ -167,8 +168,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 					device_hess_col_idx(idx) = i * dim + k;
 					if (d < dhat)
 						device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n(j) * device_n(k);
-					else
-						device_hess_val(idx) = 0;
 				}
 			} })
 		.wait();
@@ -194,8 +193,6 @@ const DeviceTripletMatrix<T, 1> &BarrierEnergy<T, dim>::hess()
 									device_hess_val(idx) = device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
 								else
 									device_hess_val(idx) = -device_contact_area(i) * dhat * kappa / (2 * d * d * dhat) * (d + dhat) * device_n_ceil(j) * device_n_ceil(k);
-							else
-								device_hess_val(idx) = 0;
 						}
 					} })
 		.wait();
@@ -230,7 +227,6 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n(j) * (device_x(i * dim + j) - device_o(j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
-
 		} })
 		.wait();
 
@@ -251,7 +247,6 @@ T BarrierEnergy<T, dim>::init_step_size(const DeviceBuffer<T> &p)
 				alpha += device_n_ceil(j) * (device_x(i * dim + j) - device_x((N-1) * dim + j));
 			}
 			device_alpha(i) = min(device_alpha(i), 0.9 * alpha / -p_n);
-			//printf("alpha: %f\n", device_alpha(i));
 		} })
 		.wait();
 	return min_vector(device_alpha);

@@ -181,16 +181,16 @@ const DeviceTripletMatrix<T, 1> &FrictionEnergy<T, dim>::hess()
     device_hess_val.fill(0);
     ParallelFor(256).apply(N, [device_v = device_v.cviewer(), device_mu_lambda = device_mu_lambda.cviewer(), device_hess_val = device_hess_val.viewer(), device_hess_row_idx = device_hess_row_idx.viewer(), device_hess_col_idx = device_hess_col_idx.viewer(), hhat, n, N, this] __device__(int i) mutable
                            {
-        Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
-        for (int j = 0; j < dim; ++j)
-        {
-            for (int k = 0; k < dim; ++k)
+            for (int j = 0; j < dim; ++j)
             {
-                int idx = i * dim * dim + j * dim + k;
-                device_hess_row_idx(idx) = i * dim + j;
-                device_hess_col_idx(idx) = i * dim + k;
+                for (int k = 0; k < dim; ++k)
+                {
+                    int idx = i * dim * dim + j * dim + k;
+                    device_hess_row_idx(idx) = i * dim + j;
+                    device_hess_col_idx(idx) = i * dim + k;
+                }
             }
-        }
+        Eigen::Matrix<T, dim, dim> T_mat = Eigen::Matrix<T, dim, dim>::Identity() - n * n.transpose();
         if (device_mu_lambda(i) > 0)
         {
             Eigen::Matrix<T, dim, 1> v;

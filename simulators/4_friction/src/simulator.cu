@@ -193,6 +193,12 @@ void FrictionSimulator<T, dim>::Impl::draw()
 {
     window.clear(sf::Color::White); // Clear the previous frame
 
+    // Draw the ground
+    sf::Vertex line[] = {
+        sf::Vertex(sf::Vector2f(screen_projection_x(0 - 1 * 5), screen_projection_y(-1.0 + 0.1 * 5)), sf::Color::Blue),
+        sf::Vertex(sf::Vector2f(screen_projection_x(0 + 1 * 5), screen_projection_y(-1.0 - 0.1 * 5)), sf::Color::Blue)};
+    window.draw(line, 2, sf::Lines);
+
     // Draw springs as lines
     for (int i = 0; i < e.size() / 2; ++i)
     {
