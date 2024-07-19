@@ -101,6 +101,7 @@ void MassSpringSimulator<T, dim>::run()
     window.close();
 }
 
+// ANCHOR: step_forward
 template <typename T, int dim>
 void MassSpringSimulator<T, dim>::Impl::step_forward()
 {
@@ -111,7 +112,6 @@ void MassSpringSimulator<T, dim>::Impl::step_forward()
     T E_last = IP_val();
     DeviceBuffer<T> p = search_direction();
     T residual = max_vector(p) / h;
-    // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
         std::cout << "Iteration " << iter << " residual " << residual << "E_last" << E_last << "\n";
@@ -132,7 +132,9 @@ void MassSpringSimulator<T, dim>::Impl::step_forward()
     }
     update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
 }
-template <typename T, int dim>
+// ANCHOR_END: step_forward
+
+.template <typename T, int dim>
 T MassSpringSimulator<T, dim>::Impl::screen_projection_x(T point)
 {
     return offset + scale * point;

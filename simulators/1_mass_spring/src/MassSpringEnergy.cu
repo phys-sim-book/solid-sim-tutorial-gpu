@@ -70,6 +70,7 @@ void MassSpringEnergy<T, dim>::update_k(const std::vector<T> &k)
 	pimpl_->device_k.copy_from(k);
 }
 
+// ANCHOR: val
 template <typename T, int dim>
 T MassSpringEnergy<T, dim>::val()
 {
@@ -81,19 +82,21 @@ T MassSpringEnergy<T, dim>::val()
 	DeviceBuffer<T> device_val(N);
 	ParallelFor(256).apply(N, [device_val = device_val.viewer(), device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer()] __device__(int i) mutable
 						   {
-							   int idx1= device_e(2 * i); // First node index
-								int idx2 = device_e(2 * i + 1); // Second node index
-								T diff = 0;
-								for (int d = 0; d < dim;d++){
-									T diffi = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
-									diff += diffi * diffi;
-						   		}
-								device_val(i) = 0.5 * device_l2(i) * device_k(i) * (diff / device_l2(i) - 1) * (diff / device_l2(i) - 1); })
+		int idx1= device_e(2 * i); // First node index
+		int idx2 = device_e(2 * i + 1); // Second node index
+		T diff = 0;
+		for (int d = 0; d < dim;d++){
+			T diffi = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
+			diff += diffi * diffi;
+		}
+		device_val(i) = 0.5 * device_l2(i) * device_k(i) * (diff / device_l2(i) - 1) * (diff / device_l2(i) - 1); })
 		.wait();
 
 	return devicesum(device_val);
 } // Calculate the energy
+// ANCHOR_END: val
 
+// ANCHOR: grad
 template <typename T, int dim>
 const DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 {
@@ -106,25 +109,26 @@ const DeviceBuffer<T> &MassSpringEnergy<T, dim>::grad()
 	device_grad.fill(0);
 	ParallelFor(256).apply(N, [device_x = device_x.cviewer(), device_e = device_e.cviewer(), device_l2 = device_l2.cviewer(), device_k = device_k.cviewer(), device_grad = device_grad.viewer()] __device__(int i) mutable
 						   {
-							int idx1= device_e(2 * i); // First node index
-							int idx2 = device_e(2 * i + 1); // Second node index
-							T diff = 0;
-							T diffi[dim];
-							for (int d = 0; d < dim;d++){
-								diffi[d] = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
-								diff += diffi[d] * diffi[d];
-							}
-						   T factor = 2 * device_k(i) * (diff / device_l2(i) -1);
-						   for(int d=0;d<dim;d++){
-							   atomicAdd(&device_grad(dim * idx1 + d), factor * diffi[d]);
-							   atomicAdd(&device_grad(dim * idx2 + d), -factor * diffi[d]);
-							  
-						   } })
+		int idx1= device_e(2 * i); // First node index
+		int idx2 = device_e(2 * i + 1); // Second node index
+		T diff = 0;
+		T diffi[dim];
+		for (int d = 0; d < dim;d++){
+			diffi[d] = device_x(dim * idx1 + d) - device_x(dim * idx2 + d);
+			diff += diffi[d] * diffi[d];
+		}
+		T factor = 2 * device_k(i) * (diff / device_l2(i) -1);
+		for(int d=0;d<dim;d++){
+		   atomicAdd(&device_grad(dim * idx1 + d), factor * diffi[d]);
+		   atomicAdd(&device_grad(dim * idx2 + d), -factor * diffi[d]);	  
+		} })
 		.wait();
 	// display_vec(device_grad);
 	return device_grad;
 }
+// ANCHOR_END: grad
 
+// ANCHOR: hess
 template <typename T, int dim>
 const DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 {
@@ -170,8 +174,8 @@ const DeviceTripletMatrix<T, 1> &MassSpringEnergy<T, dim>::hess()
 			} })
 		.wait();
 	return device_hess;
-
 } // Calculate the Hessian of the energy
+// ANCHOR_END: hess
 
 template class MassSpringEnergy<float, 2>;
 template class MassSpringEnergy<float, 3>;
