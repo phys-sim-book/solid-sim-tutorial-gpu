@@ -4,6 +4,8 @@
 #include <cmath>
 #include "square_mesh.h"
 #include <iostream>
+
+// ANCHOR: Header
 template <typename T, int dim>
 class MassSpringSimulator
 {
@@ -21,3 +23,4 @@ private:
     // The private pointer to the implementation class Impl
     std::unique_ptr<Impl> pimpl_;
 };
+// ANCHOR_END: Header

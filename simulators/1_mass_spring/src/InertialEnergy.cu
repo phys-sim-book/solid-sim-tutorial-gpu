@@ -59,8 +59,6 @@ void InertialEnergy<T, dim>::generate_hess()
 				   device_hess_row_indices(i) = i;
 				   device_hess_col_indices(i) = i;
 				   device_hess_values(i) = m;
-				   // std::cout << device_hess_values(i) << ' ' << device_hess_row_indices(i) << ' ' << device_hess_col_indices(i) << std::endl;
-				   // printf("%f %d %d\n", device_hess_values(i), device_hess_row_indices(i), device_hess_col_indices(i));
 			   })
 		.wait();
 }
@@ -116,7 +114,6 @@ const DeviceBuffer<T> &InertialEnergy<T, dim>::grad()
 				   device_grad(i) = m * (device_x(i) - device_x_tilde(i));
 			   })
 		.wait();
-	// display_vec(device_grad);
 	return device_grad;
 } // Calculate the gradient of the energy
 

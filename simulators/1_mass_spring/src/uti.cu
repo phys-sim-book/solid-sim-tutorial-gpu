@@ -2,6 +2,7 @@
 
 using namespace muda;
 
+// ANCHOR: add_vector
 template <typename T>
 DeviceBuffer<T> add_vector(const DeviceBuffer<T> &a, const DeviceBuffer<T> &b, const T &factor1, const T &factor2)
 {
@@ -17,6 +18,8 @@ DeviceBuffer<T> add_vector(const DeviceBuffer<T> &a, const DeviceBuffer<T> &b, c
         .wait();
     return c_device;
 }
+// ANCHOR: add_vector
+
 template DeviceBuffer<float> add_vector<float>(const DeviceBuffer<float> &a, const DeviceBuffer<float> &b, const float &factor1, const float &factor2);
 template DeviceBuffer<double> add_vector<double>(const DeviceBuffer<double> &a, const DeviceBuffer<double> &b, const double &factor1, const double &factor2);
 
@@ -97,6 +100,7 @@ T max_vector(const DeviceBuffer<T> &a)
 template float max_vector<float>(const DeviceBuffer<float> &a);
 template double max_vector<double>(const DeviceBuffer<double> &a);
 
+// ANCHOR: search_dir
 template <typename T>
 void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &hess, DeviceBuffer<T> &dir)
 {
@@ -116,6 +120,7 @@ void search_dir(const DeviceBuffer<T> &grad, const DeviceTripletMatrix<T, 1> &he
     ctx.sync();
     dir.view().copy_from(dir_device.buffer_view());
 }
+// ANCHOR_END: search_dir
 template void search_dir<float>(const DeviceBuffer<float> &grad, const DeviceTripletMatrix<float, 1> &hess, DeviceBuffer<float> &dir);
 template void search_dir<double>(const DeviceBuffer<double> &grad, const DeviceTripletMatrix<double, 1> &hess, DeviceBuffer<double> &dir);
 
