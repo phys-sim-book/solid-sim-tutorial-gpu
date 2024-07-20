@@ -6,6 +6,7 @@
 
 using namespace muda;
 
+// ANCHOR: definition
 template <typename T, int dim>
 struct MassSpringEnergy<T, dim>::Impl
 {
@@ -16,6 +17,8 @@ struct MassSpringEnergy<T, dim>::Impl
 	DeviceBuffer<T> device_grad;
 	DeviceTripletMatrix<T, 1> device_hess;
 };
+// ANCHOR_END: definition
+
 template <typename T, int dim>
 MassSpringEnergy<T, dim>::MassSpringEnergy() = default;
 

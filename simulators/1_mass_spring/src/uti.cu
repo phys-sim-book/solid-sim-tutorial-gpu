@@ -18,7 +18,7 @@ DeviceBuffer<T> add_vector(const DeviceBuffer<T> &a, const DeviceBuffer<T> &b, c
         .wait();
     return c_device;
 }
-// ANCHOR: add_vector
+// ANCHOR_END: add_vector
 
 template DeviceBuffer<float> add_vector<float>(const DeviceBuffer<float> &a, const DeviceBuffer<float> &b, const float &factor1, const float &factor2);
 template DeviceBuffer<double> add_vector<double>(const DeviceBuffer<double> &a, const DeviceBuffer<double> &b, const double &factor1, const double &factor2);
