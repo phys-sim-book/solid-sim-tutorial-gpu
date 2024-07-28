@@ -16,8 +16,9 @@ struct SelfFrictionSimulator<T, dim>::Impl
 	int n_seg;
 	T h, rho, side_len, initial_stretch, m, tol, mu, DBC_stiff, Mu, Lambda;
 	int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
-	std::vector<T> x, x_tilde, v, k, l2, DBC_limit, DBC_v, DBC_target;
-	std::vector<int> e, DBC, DBC_satisfied, is_DBC;
+	std::vector<T> host_x, host_v, host_k, host_l2, host_DBC_limit, host_DBC_v, host_DBC_target;
+	std::vector<int> host_e, host_DBC, host_DBC_satisfied, host_is_DBC;
+	DeviceBuffer<T> device_x, device_v;
 	DeviceBuffer<int> device_DBC;
 	DeviceBuffer<T> device_contact_area;
 	sf::RenderWindow window;
@@ -61,32 +62,32 @@ SelfFrictionSimulator<T, dim>::SelfFrictionSimulator(T rho, T side_len, T initia
 template <typename T, int dim>
 SelfFrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, T mu_, T Mu_, T Lam_, int n_seg) : tol(tol_), h(h_), mu(mu_), Mu(Mu_), Lambda(Lam_), window(sf::VideoMode(resolution, resolution), "SelfFrictionSimulator")
 {
-	generate(side_len, n_seg, x, e);
+	generate(side_len, n_seg, host_x, host_e);
 	for (int i = 0; i < (n_seg + 1) * (n_seg + 1); i++)
 	{
-		x.push_back(x[i * dim] + side_len * 0.1);
-		x.push_back(x[i * dim + 1] - side_len * 1.1);
+		host_x.push_back(host_x[i * dim] + side_len * 0.1);
+		host_x.push_back(host_x[i * dim + 1] - side_len * 1.1);
 	}
-	int esize = e.size();
+	int esize = host_e.size();
 	for (int i = 0; i < esize; i++)
 	{
-		e.push_back(e[i] + (n_seg + 1) * (n_seg + 1));
+		host_e.push_back(host_e[i] + (n_seg + 1) * (n_seg + 1));
 	}
 	std::vector<int> bp, be;
-	find_boundary(e, bp, be);
-	DBC.push_back(x.size() / dim);
-	DBC_target.resize(DBC.size() * dim);
-	DBC_limit.push_back(0);
-	DBC_limit.push_back(-0.7);
-	DBC_v.push_back(0);
-	DBC_v.push_back(-0.5);
+	find_boundary(host_e, bp, be);
+	host_DBC.push_back(host_x.size() / dim);
+	host_DBC_target.resize(host_DBC.size() * dim);
+	host_DBC_limit.push_back(0);
+	host_DBC_limit.push_back(-0.7);
+	host_DBC_v.push_back(0);
+	host_DBC_v.push_back(-0.5);
 	DBC_stiff = 1000;
-	x.push_back(0);
-	x.push_back(side_len * 0.6);
-	DBC_satisfied.resize(x.size() / dim);
-	is_DBC.resize(x.size() / dim, 0);
-	is_DBC[x.size() / dim - 1] = 1;
-	std::vector<T> contact_area(x.size() / dim, side_len / n_seg);
+	host_x.push_back(0);
+	host_x.push_back(side_len * 0.6);
+	host_DBC_satisfied.resize(host_x.size() / dim);
+	host_is_DBC.resize(host_x.size() / dim, 0);
+	host_is_DBC[host_x.size() / dim - 1] = 1;
+	std::vector<T> contact_area(host_x.size() / dim, side_len / n_seg);
 	std::vector<T> ground_n(dim);
 	ground_n[0] = 0, ground_n[1] = 1;
 	T n_norm = ground_n[0] * ground_n[0] + ground_n[1] * ground_n[1];
@@ -95,36 +96,40 @@ SelfFrictionSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, 
 		ground_n[i] /= n_norm;
 	std::vector<T> ground_o(dim);
 	ground_o[0] = 0, ground_o[1] = -1.0;
-	v.resize(x.size(), 0);
-	k.resize(e.size() / 2, K);
-	l2.resize(e.size() / 2);
-	for (int i = 0; i < e.size() / 2; i++)
+	host_v.resize(host_x.size(), 0);
+	host_k.resize(host_e.size() / 2, K);
+	host_l2.resize(host_e.size() / 2);
+	for (int i = 0; i < host_e.size() / 2; i++)
 	{
 		T diff = 0;
-		int idx1 = e[2 * i], idx2 = e[2 * i + 1];
+		int idx1 = host_e[2 * i], idx2 = host_e[2 * i + 1];
 		for (int d = 0; d < dim; d++)
 		{
-			diff += (x[idx1 * dim + d] - x[idx2 * dim + d]) * (x[idx1 * dim + d] - x[idx2 * dim + d]);
+			diff += (host_x[idx1 * dim + d] - host_x[idx2 * dim + d]) * (host_x[idx1 * dim + d] - host_x[idx2 * dim + d]);
 		}
-		l2[i] = diff;
+		host_l2[i] = diff;
 	}
 	m = rho * side_len * side_len / ((n_seg + 1) * (n_seg + 1));
 	// initial stretch
-	int N = x.size() / dim;
+	int N = host_x.size() / dim;
 	for (int i = 0; i < N; i++)
-		x[i * dim + 0] *= initial_stretch;
+		host_x[i * dim + 0] *= initial_stretch;
 	int Nbp = bp.size(), Nbe = be.size() / 2;
 	int Npe = Nbp * Nbe;
 	inertialenergy = InertialEnergy<T, dim>(N, m);
-	neohookeanenergy = NeoHookeanEnergy<T, dim>(x, e, Mu, Lambda);
+	neohookeanenergy = NeoHookeanEnergy<T, dim>(host_x, host_e, Mu, Lambda);
 	gravityenergy = GravityEnergy<T, dim>(N, m);
-	barrierenergy = BarrierEnergy<T, dim>(x, ground_n, ground_o, bp, be, contact_area);
-	frictionenergy = FrictionEnergy<T, dim>(v, h, ground_n, bp, be, Npe);
-	springenergy = SpringEnergy<T, dim>(x, std::vector<T>(N, m), DBC, DBC_stiff);
-	DeviceBuffer<T> x_device(x);
+	barrierenergy = BarrierEnergy<T, dim>(host_x, ground_n, ground_o, bp, be, contact_area);
+	frictionenergy = FrictionEnergy<T, dim>(host_v, h, ground_n, bp, be, Npe);
+	springenergy = SpringEnergy<T, dim>(host_x, std::vector<T>(N, m), host_DBC, DBC_stiff);
+	DeviceBuffer<T> x_device(host_x);
 	update_x(x_device);
-	device_DBC = DeviceBuffer<int>(is_DBC);
+	device_DBC = DeviceBuffer<int>(host_is_DBC);
 	device_contact_area = DeviceBuffer<T>(contact_area);
+	device_x.resize(host_x.size());
+	device_v.resize(host_v.size());
+	device_x.copy_from(host_x);
+	device_v.copy_from(host_v);
 }
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::run()
@@ -155,45 +160,44 @@ void SelfFrictionSimulator<T, dim>::run()
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::step_forward()
 {
-	DeviceBuffer<T> x_tilde(x.size()); // Predictive position
-	update_x_tilde(add_vector<T>(x, v, 1, h));
+	update_x_tilde(add_vector<T>(device_x, device_v, 1, h));
 	barrierenergy.compute_mu_lambda(mu, frictionenergy.get_mu_lambda(), frictionenergy.get_mu_lambda_self(), frictionenergy.get_n_self(), frictionenergy.get_r_self());
 	update_DBC_target();
 	// update_DBC_stiff(10);
-	DeviceBuffer<T> x_n = x; // Copy current positions to x_n
-	update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+	DeviceBuffer<T> x_n = device_x; // Copy current positions to x_n
+	update_v(add_vector<T>(device_x, x_n, 1 / h, -1 / h));
 	int iter = 0;
 	T E_last = IP_val();
-	DeviceBuffer<T> p = search_direction();
-	T residual = max_vector(p) / h;
+	DeviceBuffer<T> device_p = search_direction();
+	T residual = max_vector(device_p) / h;
 	// std::cout << "Initial residual " << residual << "\n";
-	while (residual > tol || DBC_satisfied.back() != 1) // use last one for simplisity, should check all
+	while (residual > tol || host_DBC_satisfied.back() != 1) // use last one for simplisity, should check all
 	{
 		std::cout << "Iteration " << iter << " residual " << residual << " E_last" << E_last << "\n";
-		if (residual <= tol && DBC_satisfied.back() != 1)
+		if (residual <= tol && host_DBC_satisfied.back() != 1)
 		{
 			update_DBC_stiff(DBC_stiff * 2);
 			E_last = IP_val();
 		}
 		// Line search
-		T alpha = min(barrierenergy.init_step_size(p), neohookeanenergy.init_step_size(p));
-		DeviceBuffer<T> x0 = x;
-		update_x(add_vector<T>(x0, p, 1.0, alpha));
-		update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+		T alpha = min(barrierenergy.init_step_size(device_p), neohookeanenergy.init_step_size(device_p));
+		DeviceBuffer<T> device_x0 = device_x;
+		update_x(add_vector<T>(device_x0, device_p, 1.0, alpha));
+		update_v(add_vector<T>(device_x, x_n, 1 / h, -1 / h));
 		while (IP_val() > E_last)
 		{
 			alpha /= 2;
-			update_x(add_vector<T>(x0, p, 1.0, alpha));
-			update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+			update_x(add_vector<T>(device_x0, device_p, 1.0, alpha));
+			update_v(add_vector<T>(device_x, x_n, 1 / h, -1 / h));
 		}
 		std::cout << "step size = " << alpha << "\n";
 		E_last = IP_val();
 
-		p = search_direction();
-		residual = max_vector(p) / h;
+		device_p = search_direction();
+		residual = max_vector(device_p) / h;
 		iter += 1;
 	}
-	// update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+	update_v(add_vector<T>(device_x, x_n, 1 / h, -1 / h));
 }
 template <typename T, int dim>
 T SelfFrictionSimulator<T, dim>::Impl::screen_projection_x(T point)
@@ -213,46 +217,46 @@ void SelfFrictionSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
 	gravityenergy.update_x(new_x);
 	barrierenergy.update_x(new_x);
 	springenergy.update_x(new_x);
-	new_x.copy_to(x);
+	device_x = new_x;
 }
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
 	inertialenergy.update_x_tilde(new_x_tilde);
-	new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
 	frictionenergy.update_v(new_v);
-	new_v.copy_to(v);
+	device_v = new_v;
 }
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::update_DBC_target()
 {
-	for (int i = 0; i < DBC.size(); i++)
+	device_x.copy_to(host_x);
+	for (int i = 0; i < host_DBC.size(); i++)
 	{
 		T diff = 0;
 		for (int d = 0; d < dim; d++)
 		{
-			diff += (DBC_limit[i * dim + d] - x[DBC[i] * dim + d]) * DBC_v[i * dim + d];
+			diff += (host_DBC_limit[i * dim + d] - host_x[host_DBC[i] * dim + d]) * host_DBC_v[i * dim + d];
 		}
 		if (diff > 0)
 		{
 			for (int d = 0; d < dim; d++)
 			{
-				DBC_target[i * dim + d] = x[DBC[i] * dim + d] + h * DBC_v[i * dim + d];
+				host_DBC_target[i * dim + d] = host_x[host_DBC[i] * dim + d] + h * host_DBC_v[i * dim + d];
 			}
 		}
 		else
 		{
 			for (int d = 0; d < dim; d++)
 			{
-				DBC_target[i * dim + d] = x[DBC[i] * dim + d];
+				host_DBC_target[i * dim + d] = host_x[host_DBC[i] * dim + d];
 			}
 		}
 	}
-	springenergy.update_DBC_target(DBC_target);
+	springenergy.update_DBC_target(host_DBC_target);
 }
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::update_DBC_stiff(T new_DBC_stiff)
@@ -263,6 +267,7 @@ void SelfFrictionSimulator<T, dim>::Impl::update_DBC_stiff(T new_DBC_stiff)
 template <typename T, int dim>
 void SelfFrictionSimulator<T, dim>::Impl::draw()
 {
+	device_x.copy_to(host_x);
 	window.clear(sf::Color::White); // Clear the previous frame
 
 	// Draw the ground
@@ -273,32 +278,32 @@ void SelfFrictionSimulator<T, dim>::Impl::draw()
 
 	// Draw the ceiling
 	sf::Vertex line2[] = {
-		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue),
-		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(x[x.size() - 1])), sf::Color::Blue)};
+		sf::Vertex(sf::Vector2f(screen_projection_x(-5.0), screen_projection_y(host_x[host_x.size() - 1])), sf::Color::Blue),
+		sf::Vertex(sf::Vector2f(screen_projection_x(5.0), screen_projection_y(host_x[host_x.size() - 1])), sf::Color::Blue)};
 	window.draw(line2, 2, sf::Lines);
 
 	// Draw springs as lines
-	for (int i = 0; i < e.size() / 3; ++i)
+	for (int i = 0; i < host_e.size() / 3; ++i)
 	{
 
 		sf::Vertex line[] = {
-			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3] * dim]), screen_projection_y(x[e[i * 3] * dim + 1])), sf::Color::Blue),
-			sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue)};
+			sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3] * dim]), screen_projection_y(host_x[host_e[i * 3] * dim + 1])), sf::Color::Blue),
+			sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3 + 1] * dim]), screen_projection_y(host_x[host_e[i * 3 + 1] * dim + 1])), sf::Color::Blue)};
 		window.draw(line, 2, sf::Lines);
-		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 1] * dim]), screen_projection_y(x[e[i * 3 + 1] * dim + 1])), sf::Color::Blue);
-		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 2] * dim]), screen_projection_y(x[e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
+		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3 + 1] * dim]), screen_projection_y(host_x[host_e[i * 3 + 1] * dim + 1])), sf::Color::Blue);
+		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3 + 2] * dim]), screen_projection_y(host_x[host_e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
 		window.draw(line, 2, sf::Lines);
-		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3 + 2] * dim]), screen_projection_y(x[e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
-		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 3] * dim]), screen_projection_y(x[e[i * 3] * dim + 1])), sf::Color::Blue);
+		line[0] = sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3 + 2] * dim]), screen_projection_y(host_x[host_e[i * 3 + 2] * dim + 1])), sf::Color::Blue);
+		line[1] = sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 3] * dim]), screen_projection_y(host_x[host_e[i * 3] * dim + 1])), sf::Color::Blue);
 		window.draw(line, 2, sf::Lines);
 	}
 
 	// Draw masses as circles
-	for (int i = 0; i < (x.size() - 1) / dim; ++i)
+	for (int i = 0; i < (host_x.size() - 1) / dim; ++i)
 	{
 		sf::CircleShape circle(radius); // Set a fixed radius for each mass
 		circle.setFillColor(sf::Color::Red);
-		circle.setPosition(screen_projection_x(x[i * dim]) - radius, screen_projection_y(x[i * dim + 1]) - radius); // Center the circle on the mass
+		circle.setPosition(screen_projection_x(host_x[i * dim]) - radius, screen_projection_y(host_x[i * dim + 1]) - radius); // Center the circle on the mass
 		window.draw(circle);
 	}
 	window.display(); // Display the rendered frame
@@ -341,29 +346,30 @@ template <typename T, int dim>
 DeviceBuffer<T> SelfFrictionSimulator<T, dim>::Impl::search_direction()
 {
 	DeviceBuffer<T> dir;
-	dir.resize(x.size());
+	dir.resize(host_x.size());
 	DeviceBuffer<T> grad = IP_grad();
 	DeviceTripletMatrix<T, 1> hess = IP_hess();
-	// check whether each DBC is satisfied
-	for (int i = 0; i < DBC_satisfied.size(); i++)
+	// check whether each host_DBC is satisfied
+	for (int i = 0; i < host_DBC_satisfied.size(); i++)
 	{
-		DBC_satisfied[i] = 0;
+		host_DBC_satisfied[i] = 0;
 	}
 
-	for (int i = 0; i < DBC.size(); i++)
+	device_x.copy_to(host_x);
+	for (int i = 0; i < host_DBC.size(); i++)
 	{
 		T diff = 0;
 		for (int d = 0; d < dim; d++)
 		{
-			diff += (x[DBC[i] * dim + d] - DBC_target[i * dim + d]) * (x[DBC[i] * dim + d] - DBC_target[i * dim + d]);
+			diff += (host_x[host_DBC[i] * dim + d] - host_DBC_target[i * dim + d]) * (host_x[host_DBC[i] * dim + d] - host_DBC_target[i * dim + d]);
 		}
 		diff = sqrt(diff);
 		if (diff / h < tol)
 		{
-			DBC_satisfied[DBC[i]] = 1;
+			host_DBC_satisfied[host_DBC[i]] = 1;
 		}
 	}
-	search_dir<T, dim>(grad, hess, dir, device_DBC, DBC_target, DBC_satisfied);
+	search_dir<T, dim>(grad, hess, dir, device_DBC, host_DBC_target, host_DBC_satisfied);
 	return dir;
 }
 

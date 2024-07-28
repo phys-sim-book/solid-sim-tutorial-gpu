@@ -13,8 +13,9 @@ struct DirichletSimulator<T, dim>::Impl
     int n_seg;
     T h, rho, side_len, initial_stretch, m, tol;
     int resolution = 900, scale = 200, offset = resolution / 2, radius = 5;
-    std::vector<T> x, x_tilde, v, k, l2;
-    std::vector<int> e;
+    std::vector<T> host_x, host_k, host_l2;
+    std::vector<int> host_e;
+    DeviceBuffer<T> device_x, device_v;
     DeviceBuffer<int> device_DBC;
     sf::RenderWindow window;
     InertialEnergy<T, dim> inertialenergy;
@@ -52,34 +53,34 @@ DirichletSimulator<T, dim>::DirichletSimulator(T rho, T side_len, T initial_stre
 template <typename T, int dim>
 DirichletSimulator<T, dim>::Impl::Impl(T rho, T side_len, T initial_stretch, T K, T h_, T tol_, int n_seg) : tol(tol_), h(h_), window(sf::VideoMode(resolution, resolution), "DirichletSimulator")
 {
-    generate(side_len, n_seg, x, e);
-    std::vector<int> DBC(x.size() / dim, 0);
+    generate(side_len, n_seg, host_x, host_e);
+    std::vector<int> DBC(host_x.size() / dim, 0);
     DBC[n_seg] = 1;
     DBC[(n_seg + 1) * (n_seg + 1) - 1] = 1;
-    v.resize(x.size(), 0);
-    k.resize(e.size() / 2, K);
-    l2.resize(e.size() / 2);
-    for (int i = 0; i < e.size() / 2; i++)
+    device_x.resize(host_x.size(), 0);
+    device_v.resize(host_x.size(), 0);
+    host_k.resize(host_e.size() / 2, K);
+    host_l2.resize(host_e.size() / 2);
+    for (int i = 0; i < host_e.size() / 2; i++)
     {
         T diff = 0;
-        int idx1 = e[2 * i], idx2 = e[2 * i + 1];
+        int idx1 = host_e[2 * i], idx2 = host_e[2 * i + 1];
         for (int d = 0; d < dim; d++)
         {
-            diff += (x[idx1 * dim + d] - x[idx2 * dim + d]) * (x[idx1 * dim + d] - x[idx2 * dim + d]);
+            diff += (host_x[idx1 * dim + d] - host_x[idx2 * dim + d]) * (host_x[idx1 * dim + d] - host_x[idx2 * dim + d]);
         }
-        l2[i] = diff;
+        host_l2[i] = diff;
     }
     m = rho * side_len * side_len / ((n_seg + 1) * (n_seg + 1));
     // initial stretch
-    int N = x.size() / dim;
+    int N = host_x.size() / dim;
     for (int i = 0; i < N; i++)
-        x[i * dim + 0] *= initial_stretch;
+        host_x[i * dim + 0] *= initial_stretch;
     inertialenergy = InertialEnergy<T, dim>(N, m);
-    massspringenergy = MassSpringEnergy<T, dim>(x, e, l2, k);
+    massspringenergy = MassSpringEnergy<T, dim>(host_x, host_e, host_l2, host_k);
     gravityenergy = GravityEnergy<T, dim>(N, m);
-    DeviceBuffer<T> x_device(x);
-    update_x(x_device);
     device_DBC = DeviceBuffer<int>(DBC);
+    device_x.copy_from(host_x);
 }
 template <typename T, int dim>
 
@@ -110,34 +111,33 @@ void DirichletSimulator<T, dim>::run()
 template <typename T, int dim>
 void DirichletSimulator<T, dim>::Impl::step_forward()
 {
-    DeviceBuffer<T> x_tilde(x.size()); // Predictive position
-    update_x_tilde(add_vector<T>(x, v, 1, h));
-    DeviceBuffer<T> x_n = x; // Copy current positions to x_n
+    update_x_tilde(add_vector<T>(device_x, device_v, 1, h));
+    DeviceBuffer<T> device_x_n = device_x; // Copy current positions to device_x_n
     int iter = 0;
     T E_last = IP_val();
-    DeviceBuffer<T> p = search_direction();
-    T residual = max_vector(p) / h;
+    DeviceBuffer<T> device_p = search_direction();
+    T residual = max_vector(device_p) / h;
     // std::cout << "Initial residual " << residual << "\n";
     while (residual > tol)
     {
         std::cout << "Iteration " << iter << " residual " << residual << "E_last" << E_last << "\n";
         // Line search
         T alpha = 1;
-        DeviceBuffer<T> x0 = x;
-        update_x(add_vector<T>(x0, p, 1.0, alpha));
+        DeviceBuffer<T> x0 = device_x;
+        update_x(add_vector<T>(x0, device_p, 1.0, alpha));
         while (IP_val() > E_last)
         {
             alpha /= 2;
-            update_x(add_vector<T>(x0, p, 1.0, alpha));
+            update_x(add_vector<T>(x0, device_p, 1.0, alpha));
         }
         // std::cout << "step size = " << alpha << "\n";
         E_last = IP_val();
         // std::cout << "Iteration " << iter << " residual " << residual << "E_last" << E_last << "\n";
-        p = search_direction();
-        residual = max_vector(p) / h;
+        device_p = search_direction();
+        residual = max_vector(device_p) / h;
         iter += 1;
     }
-    update_v(add_vector<T>(x, x_n, 1 / h, -1 / h));
+    update_v(add_vector<T>(device_x, device_x_n, 1 / h, -1 / h));
 }
 template <typename T, int dim>
 T DirichletSimulator<T, dim>::Impl::screen_projection_x(T point)
@@ -155,39 +155,39 @@ void DirichletSimulator<T, dim>::Impl::update_x(const DeviceBuffer<T> &new_x)
     inertialenergy.update_x(new_x);
     massspringenergy.update_x(new_x);
     gravityenergy.update_x(new_x);
-    new_x.copy_to(x);
+    device_x = new_x;
 }
 template <typename T, int dim>
 void DirichletSimulator<T, dim>::Impl::update_x_tilde(const DeviceBuffer<T> &new_x_tilde)
 {
     inertialenergy.update_x_tilde(new_x_tilde);
-    new_x_tilde.copy_to(x_tilde);
 }
 template <typename T, int dim>
 void DirichletSimulator<T, dim>::Impl::update_v(const DeviceBuffer<T> &new_v)
 {
-    new_v.copy_to(v);
+    device_v = new_v;
 }
 template <typename T, int dim>
 void DirichletSimulator<T, dim>::Impl::draw()
 {
+    device_x.copy_to(host_x);
     window.clear(sf::Color::White); // Clear the previous frame
 
     // Draw springs as lines
-    for (int i = 0; i < e.size() / 2; ++i)
+    for (int i = 0; i < host_e.size() / 2; ++i)
     {
         sf::Vertex line[] = {
-            sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 2] * dim]), screen_projection_y(x[e[i * 2] * dim + 1])), sf::Color::Blue),
-            sf::Vertex(sf::Vector2f(screen_projection_x(x[e[i * 2 + 1] * dim]), screen_projection_y(x[e[i * 2 + 1] * dim + 1])), sf::Color::Blue)};
+            sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 2] * dim]), screen_projection_y(host_x[host_e[i * 2] * dim + 1])), sf::Color::Blue),
+            sf::Vertex(sf::Vector2f(screen_projection_x(host_x[host_e[i * 2 + 1] * dim]), screen_projection_y(host_x[host_e[i * 2 + 1] * dim + 1])), sf::Color::Blue)};
         window.draw(line, 2, sf::Lines);
     }
 
     // Draw masses as circles
-    for (int i = 0; i < x.size() / dim; ++i)
+    for (int i = 0; i < host_x.size() / dim; ++i)
     {
         sf::CircleShape circle(radius); // Set a fixed radius for each mass
         circle.setFillColor(sf::Color::Red);
-        circle.setPosition(screen_projection_x(x[i * dim]) - radius, screen_projection_y(x[i * dim + 1]) - radius); // Center the circle on the mass
+        circle.setPosition(screen_projection_x(host_x[i * dim]) - radius, screen_projection_y(host_x[i * dim + 1]) - radius); // Center the circle on the mass
         window.draw(circle);
     }
 
@@ -219,7 +219,7 @@ template <typename T, int dim>
 DeviceBuffer<T> DirichletSimulator<T, dim>::Impl::search_direction()
 {
     DeviceBuffer<T> dir;
-    dir.resize(x.size());
+    dir.resize(device_x.size());
     DeviceBuffer<T> grad = IP_grad();
     DeviceTripletMatrix<T, 1> hess = IP_hess();
     search_dir<T, dim>(grad, hess, dir, device_DBC);
