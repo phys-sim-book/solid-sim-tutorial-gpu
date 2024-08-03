@@ -1,9 +1,9 @@
 # MUDA-based Solid Simulatoion Tutorial
-This is a tutorial for Solid Simulations using [MUDA](https://github.com/MuGdxy/muda) (a CUDA programming paradigm).
+This is a tutorial for elastodynamic contact simulation using [MUDA](https://github.com/MuGdxy/muda) (a [CUDA](https://developer.nvidia.com/cuda-toolkit) programming paradigm).
 
-The basic architecture of the simulators follows [@liminchen](https://github.com/liminchen)'s Numpy version [Solid-Sim-Tutorial](https://github.com/phys-sim-book/solid-sim-tutorial).
+The basic architecture of the simulators follows [@liminchen](https://github.com/liminchen)'s Numpy version [solid-sim-tutorial](https://github.com/phys-sim-book/solid-sim-tutorial).
 
-The tutorial (written by a beginner of simulation) aims at helping beginners learn how to write simple CUDA codes for efficient solid simulation on the GPU.
+The tutorial (written by a beginner of simulation) aims at helping beginners learn how to write simple CUDA codes for efficient solid simulations on the GPU.
 
 ## Usage
 1. Clone the repository
