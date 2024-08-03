@@ -1,9 +1,10 @@
-# Muda-based Solid Simulatoion Tutorial
-This is a tutorial for the Solid Simulation using Muda (a CUDA programming paradigm https://github.com/MuGdxy/muda).
+# MUDA-based Solid Simulatoion Tutorial
+This is a tutorial for Solid Simulations using [MUDA](https://github.com/MuGdxy/muda) (a CUDA programming paradigm).
 
-The basic architecture of the simulators mimics Minchen Li's Solid-Sim-Tutorial(https://github.com/phys-sim-book/solid-sim-tutorial). 
+The basic architecture of the simulators follows [@liminchen](https://github.com/liminchen)'s Numpy version [Solid-Sim-Tutorial](https://github.com/phys-sim-book/solid-sim-tutorial).
 
-The tutorial (which is also written by a beginner) may provide some help for the beginners to learn how to write simple CUDA codes for implicit solid simulation.
+The tutorial (written by a beginner of simulation) aims at helping beginners learn how to write simple CUDA codes for efficient solid simulation on the GPU.
+
 ## Usage
 1. Clone the repository
 ```bash
@@ -27,7 +28,7 @@ CMake>=3.29
 
 CUDA>=11.0
 
-## Simulators
+## Examples
 
 ### 1. Simple Mass-Spring System
 ![Simple Mass-Spring System](./img/1.png)
@@ -37,11 +38,11 @@ CUDA>=11.0
 ![Contact](./img/3.png)
 ### 4. Friction
 ![Friction](./img/4.png)
-### 5. Moving Dirichlet Boundary
+### 5. Moving Dirichlet Boundary Condition
 ![Moving Dirichlet Boundary](./img/5.png)
-### 6. Neohookean Model
+### 6. Neohookean Solids
 ![Neohookean Model](./img/6.png)
-### 7. Neohookean Model with Self Collision
+### 7. Neohookean Solids with Self-Contact
 ![Neohookean Model with Self Collision](./img/7.png)
-### 8. Neohookean Model with Self  Friction
+### 8. Neohookean Solids with Frictional Self-Contact
 ![Neohookean Model with Self  Friction](./img/8.png)
