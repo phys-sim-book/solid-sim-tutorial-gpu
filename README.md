@@ -3,7 +3,7 @@ This is a tutorial for elastodynamic contact simulation using [MUDA](https://git
 
 The basic architecture of the simulators follows [@liminchen](https://github.com/liminchen)'s Numpy version [solid-sim-tutorial](https://github.com/phys-sim-book/solid-sim-tutorial).
 
-The tutorial (written by a beginner of simulation) aims at helping beginners learn how to write simple CUDA codes for efficient solid simulations on the GPU.
+The tutorial (written by a beginner of simulation) aims at helping beginners learn how to write simple CUDA codes for efficient solid simulations on the GPU. An introductory section for the first example of this tutorial can be found at [https://phys-sim-book.github.io/lec4.6-gpu_accel.html](https://phys-sim-book.github.io/lec4.6-gpu_accel.html).
 
 ## Usage
 1. Clone the repository
