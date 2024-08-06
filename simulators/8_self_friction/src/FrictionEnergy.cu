@@ -11,7 +11,7 @@ template <typename T, int dim>
 struct FrictionEnergy<T, dim>::Impl
 {
     DeviceBuffer<T> device_v;
-    DeviceBuffer<T> device_mu_lambda，device_mu_lambda_self，device_r_self;
+    DeviceBuffer<T> device_mu_lambda, device_mu_lambda_self, device_r_self;
     DeviceBuffer<T> device_grad;
     DeviceBuffer<int> device_bp, device_be;
     DeviceBuffer<Eigen::Matrix<T, 2, 1>> device_n_self;
